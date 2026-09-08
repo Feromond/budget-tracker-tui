@@ -176,9 +176,10 @@ many are stale. It's a nudge to go and look, not an error.
 
 ### Archiving
 
-Accounts you've closed can be archived with `A` (`Shift+A`) rather than deleted. Their history stays
-intact so past performance stays correct, but they drop out of the table and the totals. `A` toggles
-them back into view.
+Accounts you've closed can be archived rather than deleted. Press `e` on one and flip its *Status*
+field to `Archived`. Its history stays intact so past performance stays correct, but it drops out of
+the table and the totals. `A` (`Shift+A`) toggles archived accounts back into view so you can read
+them or unarchive one.
 
 Investments belong to the ledger they were created in, the same way transactions do, and are carried
 along when you copy a ledger.

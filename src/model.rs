@@ -792,9 +792,9 @@ impl Portfolio {
         end: NaiveDate,
         show_archived: bool,
     ) -> Decimal {
-        self.window_starts(account_id, start, show_archived)
+        self.target_ids(account_id, show_archived)
             .into_iter()
-            .map(|(id, from)| self.net_flow(id, Some(from), end))
+            .map(|id| self.net_flow(id, Some(start), end))
             .sum()
     }
 
@@ -934,10 +934,7 @@ impl Portfolio {
 
         (first.year()..=today.year())
             .map(|year| {
-                // First year opens at the first entry, or pre-tracking growth lands in it.
-                let start = NaiveDate::from_ymd_opt(year - 1, 12, 31)
-                    .unwrap_or(first)
-                    .max(first);
+                let start = NaiveDate::from_ymd_opt(year - 1, 12, 31).unwrap_or(first);
                 let end = NaiveDate::from_ymd_opt(year, 12, 31)
                     .unwrap_or(today)
                     .min(today);

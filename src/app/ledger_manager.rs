@@ -225,14 +225,28 @@ impl App {
             .find(|ledger| ledger.id == id)
             .map(|ledger| ledger.name.clone())
             .unwrap_or_default();
-        let count = self.ledger_store().transaction_count(id).unwrap_or(0);
+        let store = self.ledger_store();
+        let count = store.transaction_count(id).unwrap_or(0);
+        let accounts = store.investment_account_count(id).unwrap_or(0);
 
-        self.ledger_delete_prompt = format!(
-            "Delete '{}' and its {} transaction{}? (y/n)",
-            name,
-            count,
-            if count == 1 { "" } else { "s" }
-        );
+        let plural = |n: i64| if n == 1 { "" } else { "s" };
+        self.ledger_delete_prompt = if accounts > 0 {
+            format!(
+                "Delete '{}' with its {} transaction{} and {} investment account{}? (y/n)",
+                name,
+                count,
+                plural(count),
+                accounts,
+                plural(accounts)
+            )
+        } else {
+            format!(
+                "Delete '{}' and its {} transaction{}? (y/n)",
+                name,
+                count,
+                plural(count)
+            )
+        };
         self.ledger_delete_id = Some(id);
         self.mode = AppMode::ConfirmLedgerDelete;
     }

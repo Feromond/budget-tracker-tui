@@ -34,6 +34,7 @@ pub trait LedgerStore {
     /// Delete a ledger and everything it holds. Refuses to delete the last ledger.
     fn delete(&self, id: i64) -> Result<()>;
     fn transaction_count(&self, id: i64) -> Result<i64>;
+    fn investment_account_count(&self, id: i64) -> Result<i64>;
     fn set_active_id(&self, id: i64) -> Result<()>;
 }
 
@@ -308,6 +309,16 @@ impl LedgerStore for SqliteLedgerStore {
             |row| row.get(0),
         )
         .map_err(|err| Error::other(format!("Failed to count ledger transactions: {}", err)))
+    }
+
+    fn investment_account_count(&self, id: i64) -> Result<i64> {
+        let conn = self.ready_connection()?;
+        conn.query_row(
+            "SELECT COUNT(*) FROM investment_accounts WHERE ledger_id = ?1",
+            [id],
+            |row| row.get(0),
+        )
+        .map_err(|err| Error::other(format!("Failed to count investment accounts: {}", err)))
     }
 
     fn set_active_id(&self, id: i64) -> Result<()> {

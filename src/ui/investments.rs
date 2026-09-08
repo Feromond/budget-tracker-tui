@@ -118,11 +118,11 @@ fn render_empty_state(f: &mut Frame, area: Rect) {
         Line::from("that you contributed, so growth is measured from the right place."),
         Line::from(""),
         Line::from(Span::styled(
-            "Then record a valuation ('v') whenever you check on it, and a contribution",
+            "Then press 'v' whenever you check on it to record what it is worth, and open",
             Style::default().fg(Color::DarkGray),
         )),
         Line::from(Span::styled(
-            "or withdrawal ('n') whenever money moves. Growth is worked out from those.",
+            "it with Enter to add contributions and withdrawals. Growth comes from those.",
             Style::default().fg(Color::DarkGray),
         )),
     ])

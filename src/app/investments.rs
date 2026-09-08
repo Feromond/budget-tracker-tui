@@ -136,6 +136,7 @@ impl App {
     pub(crate) fn toggle_archived_investments(&mut self) {
         self.show_archived_investments = !self.show_archived_investments;
         self.clamp_investment_selection();
+        self.clamp_investment_range();
         let message = if self.show_archived_investments {
             "Showing archived accounts."
         } else {
@@ -179,6 +180,7 @@ impl App {
         };
         self.investment_detail_id = Some(id);
         self.mode = AppMode::InvestmentDetail;
+        self.clamp_investment_range();
         let has_entries = !self.detail_entry_ids().is_empty();
         self.investment_entry_table_state
             .select(has_entries.then_some(0));
@@ -188,6 +190,7 @@ impl App {
     pub(crate) fn exit_investment_detail(&mut self) {
         self.investment_detail_id = None;
         self.mode = AppMode::Investments;
+        self.clamp_investment_range();
         self.clear_status_message();
     }
 

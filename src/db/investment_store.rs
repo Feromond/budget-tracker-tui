@@ -265,7 +265,9 @@ impl InvestmentStore for SqliteInvestmentStore {
                 "
                 UPDATE investment_entries
                 SET account_id = ?1, date = ?2, entry_kind = ?3, amount = ?4, note = ?5
-                WHERE id = ?6
+                WHERE id = ?6 AND account_id IN (
+                    SELECT id FROM investment_accounts WHERE ledger_id = ?7
+                )
                 ",
                 params![
                     draft.account_id,
@@ -273,7 +275,8 @@ impl InvestmentStore for SqliteInvestmentStore {
                     draft.entry_kind.as_str(),
                     amount.to_string(),
                     draft.note.trim(),
-                    id
+                    id,
+                    self.ledger_id
                 ],
             )
             .map_err(|err| Error::other(format!("Failed to update investment entry: {}", err)))?;

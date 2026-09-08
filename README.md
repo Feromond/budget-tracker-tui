@@ -78,6 +78,14 @@ cargo install budget-tracker-tui
 
 This puts the `budget-tracker` command on your PATH. If you previously installed the old `budget_tracker_tui` crate, run `cargo uninstall budget_tracker_tui` first, since cargo leaves the old `Budget_Tracker` binary behind on its own.
 
+### Homebrew (macOS & Linux)
+
+With Homebrew installed ([brew.sh](https://brew.sh)):
+
+```bash
+brew install budget-tracker-tui
+```
+
 ### Prebuilt binaries (no Rust required)
 
 Grab the archive for your platform from the [Releases page](https://github.com/Feromond/budget-tracker-tui/releases), unpack it, and move `budget-tracker` onto your PATH. Linux has glibc and static musl builds for both x86_64 and arm64; the musl ones run on any distribution. Every release ships a `SHA256SUMS` file if you want to check the download:

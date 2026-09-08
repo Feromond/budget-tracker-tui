@@ -7,6 +7,7 @@
 <p align="center">
   <a href="https://crates.io/crates/budget-tracker-tui"><img src="https://img.shields.io/crates/v/budget-tracker-tui" alt="Crates.io version"></a>
   <a href="https://crates.io/crates/budget-tracker-tui"><img src="https://img.shields.io/crates/d/budget-tracker-tui" alt="Crates.io downloads"></a>
+  <a href="https://formulae.brew.sh/formula/budget-tracker"><img src="https://img.shields.io/homebrew/v/budget-tracker" alt="Homebrew version"></a>
   <a href="https://ratatui.rs/"><img src="https://ratatui.rs/built-with-ratatui/badge.svg" alt="Built With Ratatui"></a>
 </p>
 
@@ -18,6 +19,8 @@ A terminal app for tracking your personal budget, built with [Rust](https://www.
 
 ```bash
 cargo install budget-tracker-tui
+# or
+brew install budget-tracker
 ```
 
 ## Screenshots
@@ -84,7 +87,7 @@ This puts the `budget-tracker` command on your PATH. If you previously installed
 With Homebrew installed ([brew.sh](https://brew.sh)):
 
 ```bash
-brew install budget-tracker-tui
+brew install budget-tracker
 ```
 
 ### Prebuilt binaries (no Rust required)

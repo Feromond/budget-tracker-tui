@@ -47,6 +47,8 @@ brew install budget-tracker
   <br><i>Cumulative chart with budget line</i><br><br>
   <img width="1000" height="612" alt="summary_cum_multi" src="https://github.com/user-attachments/assets/97633bb7-fc4c-4c20-822f-2f7feb1e0065" />
   <br><i>Cumulative multi-month chart</i><br><br>
+  <img width="1000" height="614" alt="investments" src="https://github.com/user-attachments/assets/290795dc-8c57-47e5-b1b9-1d52269b8990" />
+  <br><i>Investments/i><br><br>
   <img width="1000" height="612" alt="help_menu" src="https://github.com/user-attachments/assets/7b994e22-1fc2-435d-9a07-e6c5373f51b4" />
   <br><i>Settings with help menu open</i><br><br>
   <img width="1000" height="612" alt="fuzzy_find" src="https://github.com/user-attachments/assets/9c6217f3-dbf5-47a9-8e86-b61c35449ba5" />

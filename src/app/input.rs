@@ -41,6 +41,28 @@ impl App {
                     field.kind(),
                 ))
             }
+            AppMode::InvestmentAccountEditor => {
+                let field = self.investment_account_fields.focused();
+                if !field.kind().is_editable() {
+                    return None;
+                }
+                Some((
+                    &mut self.investment_account_fields[field],
+                    &mut self.investment_account_cursor,
+                    field.kind(),
+                ))
+            }
+            AppMode::InvestmentEntryEditor => {
+                let field = self.investment_entry_fields.focused();
+                if !field.kind().is_editable() {
+                    return None;
+                }
+                Some((
+                    &mut self.investment_entry_fields[field],
+                    &mut self.investment_entry_cursor,
+                    field.kind(),
+                ))
+            }
             AppMode::BudgetCategoryEditor => Some((
                 &mut self.budget_edit_input,
                 &mut self.budget_edit_cursor,
@@ -67,6 +89,15 @@ impl App {
                     field.kind(),
                 ))
             }
+            _ => None,
+        }
+    }
+
+    /// The focused input when it is a date field, so date stepping works in every form
+    /// without each one naming its own field.
+    pub(crate) fn active_date_input(&mut self) -> Option<(&mut String, &mut usize)> {
+        match self.get_active_input_mut() {
+            Some((content, cursor, FieldKind::Date)) => Some((content, cursor)),
             _ => None,
         }
     }

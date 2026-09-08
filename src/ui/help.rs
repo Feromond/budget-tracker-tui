@@ -63,6 +63,13 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
             ),
             Span::raw(" Budg | "),
             Span::styled(
+                "i",
+                Style::default()
+                    .fg(Color::LightCyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" Inv | "),
+            Span::styled(
                 "1-6",
                 Style::default()
                     .fg(Color::LightBlue)
@@ -291,6 +298,52 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
             Span::raw(": Cancel"),
         ],
         AppMode::ConfirmCategoryDelete => vec![
+            Span::styled("y", Style::default().fg(Color::LightGreen)),
+            Span::raw(": Confirm | "),
+            Span::styled("n/Esc", Style::default().fg(Color::LightRed)),
+            Span::raw(": Cancel"),
+        ],
+        AppMode::Investments => vec![
+            Span::raw("↑↓ Nav | "),
+            Span::styled("←→", Style::default().fg(Color::Magenta)),
+            Span::raw(" Range | "),
+            Span::styled("Enter", Style::default().fg(Color::LightCyan)),
+            Span::raw(" Detail | "),
+            Span::styled("v", Style::default().fg(Color::LightCyan)),
+            Span::raw(" Value | "),
+            Span::styled("a", Style::default().fg(Color::LightGreen)),
+            Span::raw(" Add | "),
+            Span::styled("e", Style::default().fg(Color::LightYellow)),
+            Span::raw(" Edit | "),
+            Span::styled("d", Style::default().fg(Color::LightRed)),
+            Span::raw(" Del | "),
+            Span::styled("q/Esc", Style::default().fg(Color::Magenta)),
+            Span::raw(" Back"),
+        ],
+        AppMode::InvestmentDetail => vec![
+            Span::raw("↑↓ Entries | "),
+            Span::styled("←→", Style::default().fg(Color::Magenta)),
+            Span::raw(" Range | "),
+            Span::styled("v", Style::default().fg(Color::LightCyan)),
+            Span::raw(" Value | "),
+            Span::styled("a", Style::default().fg(Color::LightGreen)),
+            Span::raw(" Add | "),
+            Span::styled("e/Enter", Style::default().fg(Color::LightYellow)),
+            Span::raw(" Edit | "),
+            Span::styled("d", Style::default().fg(Color::LightRed)),
+            Span::raw(" Del | "),
+            Span::styled("q/Esc", Style::default().fg(Color::Magenta)),
+            Span::raw(" Back"),
+        ],
+        AppMode::InvestmentAccountEditor | AppMode::InvestmentEntryEditor => vec![
+            Span::raw("Tab/↑↓ Nav | "),
+            Span::raw("←→ Adjust | "),
+            Span::styled("Enter", Style::default().fg(Color::LightGreen)),
+            Span::raw(" Toggle/Save | "),
+            Span::styled("Esc", Style::default().fg(Color::LightRed)),
+            Span::raw(" Cancel"),
+        ],
+        AppMode::ConfirmInvestmentDelete => vec![
             Span::styled("y", Style::default().fg(Color::LightGreen)),
             Span::raw(": Confirm | "),
             Span::styled("n/Esc", Style::default().fg(Color::LightRed)),

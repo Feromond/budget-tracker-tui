@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use super::{
     add_edit_mode, budget_mode, category_manager_mode, filter_mode, fuzzy_search_mode, help_mode,
-    ledger_manager_mode, normal_mode, recurring_mode, selection_mode, settings_mode, summary_mode,
-    transaction_io_mode,
+    investments_mode, ledger_manager_mode, normal_mode, recurring_mode, selection_mode,
+    settings_mode, summary_mode, transaction_io_mode,
 };
 
 pub fn run_app<B: Backend>(
@@ -64,9 +64,10 @@ where
                                 // Allow Shift+Char in Adding, Editing and FuzzyFinding modes
                                 || ((app.mode == AppMode::Adding || app.mode == AppMode::Editing || app.mode == AppMode::FuzzyFinding || app.mode == AppMode::CategoryEditor || app.mode == AppMode::CategoryCatalogFilter || app.mode == AppMode::LedgerEditor) && key.modifiers == KeyModifiers::SHIFT && matches!(key.code, KeyCode::Char(_)))
                                 // Allow Shift+Arrow in date-like navigation modes
-                                || ((app.mode == AppMode::Adding || app.mode == AppMode::Editing || app.mode == AppMode::AdvancedFiltering || app.mode == AppMode::RecurringSettings || app.mode == AppMode::Budget)
+                                || ((app.mode == AppMode::Adding || app.mode == AppMode::Editing || app.mode == AppMode::AdvancedFiltering || app.mode == AppMode::RecurringSettings || app.mode == AppMode::Budget || app.mode == AppMode::InvestmentAccountEditor || app.mode == AppMode::InvestmentEntryEditor)
                                     && key.modifiers == KeyModifiers::SHIFT
                                     && matches!(key.code, KeyCode::Left | KeyCode::Right))
+                                || ((app.mode == AppMode::InvestmentAccountEditor || app.mode == AppMode::InvestmentEntryEditor || app.mode == AppMode::Investments) && key.modifiers == KeyModifiers::SHIFT && matches!(key.code, KeyCode::Char(_)))
                                 // Allow Ctrl+F/R in simple Filtering mode and Ctrl+R in AdvancedFiltering mode
                                 || (app.mode == AppMode::Filtering && key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Char('f') | KeyCode::Char('r')))
                                 || (app.mode == AppMode::AdvancedFiltering && key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Char('r')))
@@ -191,6 +192,13 @@ fn update(app: &mut App, key_event: KeyEvent) {
         }
         AppMode::LedgerManager | AppMode::LedgerEditor | AppMode::ConfirmLedgerDelete => {
             ledger_manager_mode::handle_ledger_manager_mode(app, key_event)
+        }
+        AppMode::Investments
+        | AppMode::InvestmentDetail
+        | AppMode::InvestmentAccountEditor
+        | AppMode::InvestmentEntryEditor
+        | AppMode::ConfirmInvestmentDelete => {
+            investments_mode::handle_investments_mode(app, key_event)
         }
     }
 }

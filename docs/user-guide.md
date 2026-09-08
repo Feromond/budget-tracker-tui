@@ -12,6 +12,7 @@ The transaction list is where you land on launch, with a summary bar up top.
 - `f` opens the quick filter, `Ctrl+F` the advanced filter
 - `r` opens recurring settings for the selected transaction
 - `s`, `c`, and `b` open the monthly summary, category summary, and budget views
+- `i` opens the [investments view](#investments)
 - `o` opens settings
 - `q` or `Esc` clears any active filter, or quits the app when no filter is active
 
@@ -91,6 +92,97 @@ drops the category from the table since only budgeted categories are listed. Pre
 [category catalog](#the-category-catalog), which is where you set a budget on a category that
 doesn't have one yet.
 
+## Investments
+
+Press `i` from the main view to track what your investments are worth over time. Everything here is
+entered by hand: there are no live prices, and no connection to your bank. You record what you see
+when you check on an account, and the app works out the rest.
+
+The idea is that you never type in a gain. You record two different things:
+
+- a **valuation**, meaning "this account is worth $62,410 today"
+- a **contribution** or **withdrawal**, meaning money crossing the account boundary
+
+Growth is then whatever is left over: the change in value with your own money taken back out. Paying
+into an account can never make your returns look better than they were.
+
+### Getting started
+
+Press `a` to add an account. Give it a name and, optionally, a type: it's free text, so use whatever
+you actually call it (`Brokerage`, `Retirement (RRSP)`, `Crypto`).
+
+If the account already exists in real life, fill in the opening position too. **Starting Value** is
+what it's worth right now, and **Contributed So Far** is how much of that you put in yourself. They
+default to the same number, which is right if you're starting fresh. Set the contributed amount
+lower when part of the balance is growth you earned before you started tracking, otherwise the app
+will report your entire existing balance as a gain on day one. Zero is a valid answer too, for
+something you were given rather than bought.
+
+### Day to day
+
+`v` records a valuation, dated today, with the cursor already in the amount. It works from the
+accounts list or from inside an account, and it's the one to press whenever you check on your
+investments.
+
+`Enter` opens the selected account, showing its full entry history, its own growth chart, and a
+year-by-year breakdown of what you contributed against what it earned. `a`, `e` and `d` always act
+on whatever the rows on screen are: accounts on the list, entries inside an account. So `a` from
+inside an account adds an entry, and the *Entry* field (`←`/`→`) switches it between contribution,
+withdrawal and valuation.
+
+Recording a second valuation for an account on a date it already has one replaces it, since two
+different values for the same day don't mean anything.
+
+### Reading the numbers
+
+The chart draws your total value above your cumulative contributions. The vertical gap between the
+two lines is your gain at that moment, so growth is the gap widening. The y-axis always starts at
+zero, which is what keeps that gap readable as a proportion.
+
+`←`/`→` move the window through YTD, 1Y, 3Y, 5Y and All, but only the ranges that would actually
+show you less than All are offered. Two months into tracking an account, `1Y` and `5Y` would both
+just be All under a misleading label, so they're skipped until you have the history to fill them.
+The date labels follow suit, showing days on a short window, months on a medium one, and years on a
+long one.
+
+The panel above it puts the dollar figure first, because it's the one that isn't open to
+interpretation, then two rates that answer different questions:
+
+- **ROI** is simply your gain over what you put in. It's the number most people mean, but it's
+  distorted by *when* you contributed: money added last month has barely had a chance to grow
+- **Annual** is a time-weighted annualized return, which chains each year's performance and weights
+  contributions by how long they were actually invested. It's closer to "how well did these
+  investments do", independent of your deposit timing
+
+Both read `N/A` rather than guessing when there's nothing invested to measure against. Over periods
+shorter than a year, *Annual* reports the period return as-is instead of extrapolating a few weeks
+out to twelve months.
+
+Pick any range other than All and the third column also shows what you gained *within that window*,
+which is a different question from lifetime *Gain*: if you opened the account with a cost basis
+lower than its value, that earlier growth counts towards *Gain* but was never watched happening, so
+it belongs to no window. On All, that slot shows your oldest valuation date instead.
+
+Every window measures each account from its own first entry, so opening a new account today doesn't
+credit the portfolio with whatever it had already earned before you added it. Years run from the
+previous New Year's Eve rather than from January 1, in both the YTD figure and the per-year table in
+the account detail, so nothing recorded on New Year's Day falls between the two.
+
+### As-of dates and staleness
+
+Your portfolio total is a sum of valuations taken on different days, so the accounts table shows the
+date of each one. Anything older than 30 days is flagged with a `!` and the panel title counts how
+many are stale. It's a nudge to go and look, not an error.
+
+### Archiving
+
+Accounts you've closed can be archived with `A` (`Shift+A`) rather than deleted. Their history stays
+intact so past performance stays correct, but they drop out of the table and the totals. `A` toggles
+them back into view.
+
+Investments belong to the ledger they were created in, the same way transactions do, and are carried
+along when you copy a ledger.
+
 ## The category catalog
 
 The catalog holds your categories and subcategories. Open it from Settings (*Manage Categories*) or with `c` from the budget view. `q`/`Esc` returns to whichever view you came from.
@@ -165,7 +257,7 @@ Press `o` to open settings. The menu is grouped into sections:
 
 ## Data storage
 
-Transactions and categories are stored together in a local SQLite database (`budget.db`). On first run with a new database, it's seeded with the default category catalog and a ledger named `Main`. Default locations:
+Transactions, categories, and investments are stored together in a local SQLite database (`budget.db`). On first run with a new database, it's seeded with the default category catalog and a ledger named `Main`. Default locations:
 
 - **Linux:** `$XDG_DATA_HOME/BudgetTracker/budget.db` (usually `~/.local/share/BudgetTracker/budget.db`)
 - **macOS:** `~/Library/Application Support/BudgetTracker/budget.db`

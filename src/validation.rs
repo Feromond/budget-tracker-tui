@@ -260,3 +260,13 @@ pub fn strip_path_quotes(path: &str) -> String {
 
     result
 }
+
+/// Like [`validate_amount_string`] but admits zero, for values that can legitimately be nothing
+/// (an investment account you have sold out of is worth 0, not "invalid").
+pub fn validate_non_negative_amount_string(amount_str: &str) -> Result<Decimal, String> {
+    match amount_str.parse::<Decimal>() {
+        Ok(amount) if amount >= Decimal::ZERO => Ok(amount),
+        Ok(_) => Err("Amount cannot be negative".to_string()),
+        Err(_) => Err("Invalid amount format".to_string()),
+    }
+}

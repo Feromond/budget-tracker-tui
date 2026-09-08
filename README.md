@@ -60,6 +60,7 @@ cargo install budget-tracker-tui
 - Hierarchical categories and subcategories, editable in-app, with optional fuzzy search
 - Monthly and category summaries with interactive charts
 - A monthly budget plus optional per-category budgets, tracked in a dedicated budget view and dated so changing one never rewrites past months
+- Manual investment tracking, recording valuations and contributions separately so growth is always derived rather than guessed
 - Multiple ledgers per database, for separate accounts or for forecasting apart from your real data
 - CSV import/export (duplicates skipped on import)
 - Local SQLite storage with decimal arithmetic (no floating-point rounding errors)
@@ -112,7 +113,7 @@ For a more detailed walkthrough of every view and setting, see the [User Guide](
 
 ## Data & configuration
 
-Transactions and categories live in a local SQLite database (`budget.db`), and app preferences in a `config.json`:
+Transactions, categories, and investments live in a local SQLite database (`budget.db`), and app preferences in a `config.json`:
 
 | OS      | Database                                       | Config                     |
 | ------- | ---------------------------------------------- | -------------------------- |

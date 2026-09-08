@@ -27,6 +27,15 @@ pub fn format_amount(amount: &Decimal) -> String {
     format!("{}{}.{}", sign, formatted_int, frac_part)
 }
 
+/// Signed for display, so a gain or a variance reads as one at a glance.
+pub fn format_signed_amount(amount: &Decimal) -> String {
+    if amount >= &Decimal::ZERO {
+        format!("+{}", format_amount(amount))
+    } else {
+        format_amount(amount)
+    }
+}
+
 pub fn format_hours(amount: &Decimal, hourly_rate: Option<Decimal>) -> String {
     if let Some(rate) = hourly_rate
         && rate > Decimal::ZERO

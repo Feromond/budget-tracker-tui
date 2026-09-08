@@ -7,6 +7,7 @@ pub mod filter;
 pub mod fuzzy_search;
 pub mod help;
 pub mod input;
+pub mod investments;
 pub mod ledger_manager;
 pub mod recurring;
 pub mod settings;

@@ -3,10 +3,12 @@ pub mod category_manager;
 pub mod category_summary;
 pub mod dialog;
 pub mod filter;
+pub mod form;
 pub mod fuzzy_search;
 pub mod help;
 pub mod help_popup;
 pub mod helpers;
+pub mod investments;
 pub mod ledger_manager;
 pub mod recurring;
 pub mod settings;
@@ -19,6 +21,16 @@ pub mod update_popup;
 
 use crate::app::state::{App, AppMode};
 use ratatui::Frame;
+use ratatui::layout::Rect;
+
+/// Whichever investments screen a popup was opened over.
+fn render_investment_background(f: &mut Frame, app: &mut App, area: Rect) {
+    if app.investment_detail_id.is_some() {
+        investments::render_investment_detail(f, app, area);
+    } else {
+        investments::render_investments_view(f, app, area);
+    }
+}
 
 pub(crate) fn ui(f: &mut Frame, app: &mut App) {
     // Determine the effective mode for rendering the background (if in help mode)
@@ -62,6 +74,11 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             | AppMode::LedgerManager
             | AppMode::LedgerEditor
             | AppMode::ConfirmLedgerDelete
+            | AppMode::Investments
+            | AppMode::InvestmentDetail
+            | AppMode::InvestmentAccountEditor
+            | AppMode::InvestmentEntryEditor
+            | AppMode::ConfirmInvestmentDelete
     ) {
         0
     } else {
@@ -158,6 +175,21 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
         AppMode::ConfirmLedgerDelete => {
             ledger_manager::render_ledger_manager(f, app, main_area);
             dialog::render_confirmation_dialog(f, &app.ledger_delete_prompt, main_area);
+        }
+        AppMode::Investments | AppMode::InvestmentDetail => {
+            render_investment_background(f, app, main_area);
+        }
+        AppMode::InvestmentAccountEditor => {
+            render_investment_background(f, app, main_area);
+            investments::render_investment_account_editor(f, app, main_area);
+        }
+        AppMode::InvestmentEntryEditor => {
+            render_investment_background(f, app, main_area);
+            investments::render_investment_entry_editor(f, app, main_area);
+        }
+        AppMode::ConfirmInvestmentDelete => {
+            render_investment_background(f, app, main_area);
+            dialog::render_confirmation_dialog(f, &app.investment_delete_prompt, main_area);
         }
         AppMode::RecurringSettings => {
             recurring::render_recurring_settings(f, app, main_area);

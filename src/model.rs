@@ -1,5 +1,6 @@
-use chrono::NaiveDate;
+use chrono::{Datelike, Duration, NaiveDate};
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -470,5 +471,479 @@ impl CategoryRecord {
             subcategory: self.subcategory.clone(),
             tag: self.tag.clone(),
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvestmentEntryKind {
+    Valuation,
+    Contribution,
+    Withdrawal,
+}
+
+impl InvestmentEntryKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            InvestmentEntryKind::Valuation => "Valuation",
+            InvestmentEntryKind::Contribution => "Contribution",
+            InvestmentEntryKind::Withdrawal => "Withdrawal",
+        }
+    }
+
+    pub fn from_label(label: &str) -> Option<InvestmentEntryKind> {
+        match label {
+            "Valuation" => Some(InvestmentEntryKind::Valuation),
+            "Contribution" => Some(InvestmentEntryKind::Contribution),
+            "Withdrawal" => Some(InvestmentEntryKind::Withdrawal),
+            _ => None,
+        }
+    }
+
+    pub fn all() -> [InvestmentEntryKind; 3] {
+        [
+            InvestmentEntryKind::Valuation,
+            InvestmentEntryKind::Contribution,
+            InvestmentEntryKind::Withdrawal,
+        ]
+    }
+
+    pub fn flow_sign(self) -> Decimal {
+        match self {
+            InvestmentEntryKind::Valuation => Decimal::ZERO,
+            InvestmentEntryKind::Contribution => Decimal::ONE,
+            InvestmentEntryKind::Withdrawal => Decimal::NEGATIVE_ONE,
+        }
+    }
+}
+
+impl fmt::Display for InvestmentEntryKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvestmentAccount {
+    pub id: i64,
+    pub name: String,
+    pub kind: String,
+    pub position: i64,
+    pub archived: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvestmentAccountDraft {
+    pub name: String,
+    pub kind: String,
+    pub archived: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvestmentEntry {
+    pub id: i64,
+    pub account_id: i64,
+    pub date: NaiveDate,
+    pub entry_kind: InvestmentEntryKind,
+    pub amount: Decimal,
+    pub note: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvestmentEntryDraft {
+    pub account_id: i64,
+    pub date: NaiveDate,
+    pub entry_kind: InvestmentEntryKind,
+    pub amount: Decimal,
+    pub note: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvestmentRange {
+    Ytd,
+    OneYear,
+    ThreeYears,
+    FiveYears,
+    All,
+}
+
+impl InvestmentRange {
+    pub fn label(self) -> &'static str {
+        match self {
+            InvestmentRange::Ytd => "YTD",
+            InvestmentRange::OneYear => "1Y",
+            InvestmentRange::ThreeYears => "3Y",
+            InvestmentRange::FiveYears => "5Y",
+            InvestmentRange::All => "All",
+        }
+    }
+
+    pub fn all() -> [InvestmentRange; 5] {
+        [
+            InvestmentRange::Ytd,
+            InvestmentRange::OneYear,
+            InvestmentRange::ThreeYears,
+            InvestmentRange::FiveYears,
+            InvestmentRange::All,
+        ]
+    }
+
+    pub fn requested_start(self, today: NaiveDate) -> Option<NaiveDate> {
+        match self {
+            // Last New Year's Eve, not Jan 1, or a move on Jan 1 falls outside the year.
+            InvestmentRange::Ytd => NaiveDate::from_ymd_opt(today.year() - 1, 12, 31),
+            InvestmentRange::OneYear => Some(crate::validation::add_months(today, -12)),
+            InvestmentRange::ThreeYears => Some(crate::validation::add_months(today, -36)),
+            InvestmentRange::FiveYears => Some(crate::validation::add_months(today, -60)),
+            InvestmentRange::All => None,
+        }
+    }
+
+    pub fn start(self, today: NaiveDate, earliest: Option<NaiveDate>) -> NaiveDate {
+        let floor = earliest.unwrap_or(today);
+        match self.requested_start(today) {
+            Some(requested) => requested.max(floor),
+            None => floor,
+        }
+    }
+
+    pub fn crops(self, today: NaiveDate, earliest: Option<NaiveDate>) -> bool {
+        match (self.requested_start(today), earliest) {
+            (Some(requested), Some(first)) => requested > first,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Portfolio {
+    accounts: Vec<InvestmentAccount>,
+    entries: Vec<InvestmentEntry>,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct InvestmentPosition {
+    pub value: Decimal,
+    pub invested: Decimal,
+    pub as_of: Option<NaiveDate>,
+}
+
+impl InvestmentPosition {
+    pub fn gain(&self) -> Decimal {
+        self.value - self.invested
+    }
+
+    pub fn roi(&self) -> Option<Decimal> {
+        (self.invested > Decimal::ZERO).then(|| (self.gain() / self.invested) * Decimal::from(100))
+    }
+}
+
+impl Portfolio {
+    pub fn new(mut accounts: Vec<InvestmentAccount>, mut entries: Vec<InvestmentEntry>) -> Self {
+        accounts.sort_by(|a, b| a.position.cmp(&b.position).then_with(|| a.id.cmp(&b.id)));
+        entries.sort_by(|a, b| {
+            a.account_id
+                .cmp(&b.account_id)
+                .then_with(|| a.date.cmp(&b.date))
+        });
+        Self { accounts, entries }
+    }
+
+    pub fn visible_accounts(&self, show_archived: bool) -> Vec<&InvestmentAccount> {
+        self.accounts
+            .iter()
+            .filter(|account| show_archived || !account.archived)
+            .collect()
+    }
+
+    pub fn account(&self, id: i64) -> Option<&InvestmentAccount> {
+        self.accounts.iter().find(|account| account.id == id)
+    }
+
+    pub fn entries_for(&self, account_id: i64) -> impl Iterator<Item = &InvestmentEntry> {
+        self.entries
+            .iter()
+            .filter(move |entry| entry.account_id == account_id)
+    }
+
+    pub fn earliest_date(&self, account_id: Option<i64>, show_archived: bool) -> Option<NaiveDate> {
+        let ids = self.target_ids(account_id, show_archived);
+        self.entries
+            .iter()
+            .filter(|entry| ids.contains(&entry.account_id))
+            .map(|entry| entry.date)
+            .min()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.accounts.is_empty()
+    }
+
+    fn last_valuation(&self, account_id: i64, date: NaiveDate) -> Option<&InvestmentEntry> {
+        self.entries.iter().rfind(|entry| {
+            entry.account_id == account_id
+                && entry.entry_kind == InvestmentEntryKind::Valuation
+                && entry.date <= date
+        })
+    }
+
+    pub fn last_valuation_date(&self, account_id: i64, on: NaiveDate) -> Option<NaiveDate> {
+        self.last_valuation(account_id, on).map(|entry| entry.date)
+    }
+
+    /// `after` is exclusive so a flow never lands in two adjacent periods.
+    fn net_flow(&self, account_id: i64, after: Option<NaiveDate>, through: NaiveDate) -> Decimal {
+        self.entries
+            .iter()
+            .filter(|entry| entry.account_id == account_id && entry.date <= through)
+            .filter(|entry| after.is_none_or(|bound| entry.date > bound))
+            .map(|entry| entry.amount * entry.entry_kind.flow_sign())
+            .sum()
+    }
+
+    /// Valuations read as end of day, so a same-day contribution is already inside one.
+    /// That's what stops it counting twice or looking like growth.
+    pub fn value_on(&self, account_id: i64, date: NaiveDate) -> Decimal {
+        match self.last_valuation(account_id, date) {
+            Some(mark) => mark.amount + self.net_flow(account_id, Some(mark.date), date),
+            None => self.net_flow(account_id, None, date),
+        }
+    }
+
+    pub fn position(&self, account_id: i64, on: NaiveDate) -> InvestmentPosition {
+        InvestmentPosition {
+            value: self.value_on(account_id, on),
+            invested: self.net_flow(account_id, None, on),
+            as_of: self.last_valuation_date(account_id, on),
+        }
+    }
+
+    /// Oldest mark wins: a total is only as current as its stalest part.
+    pub fn total_position(&self, on: NaiveDate, show_archived: bool) -> InvestmentPosition {
+        let accounts = self.visible_accounts(show_archived);
+        InvestmentPosition {
+            value: accounts
+                .iter()
+                .map(|account| self.value_on(account.id, on))
+                .sum(),
+            invested: accounts
+                .iter()
+                .map(|account| self.net_flow(account.id, None, on))
+                .sum(),
+            as_of: accounts
+                .iter()
+                .filter_map(|account| self.last_valuation_date(account.id, on))
+                .min(),
+        }
+    }
+
+    fn first_entry(&self, account_id: i64) -> Option<NaiveDate> {
+        self.entries
+            .iter()
+            .find(|entry| entry.account_id == account_id)
+            .map(|entry| entry.date)
+    }
+
+    /// An account counts only from its own first entry, never from before you tracked it.
+    /// Each account paired with the date it starts counting from. Accounts that had no
+    /// entries yet are dropped, or subtracting their later opening value invents a loss in
+    /// a period before they existed.
+    fn window_starts(
+        &self,
+        account_id: Option<i64>,
+        start: NaiveDate,
+        end: NaiveDate,
+        show_archived: bool,
+    ) -> Vec<(i64, NaiveDate)> {
+        self.target_ids(account_id, show_archived)
+            .into_iter()
+            .filter_map(|id| {
+                let first = self.first_entry(id)?;
+                (first <= end).then_some((id, start.max(first)))
+            })
+            .collect()
+    }
+
+    pub fn gain_between(
+        &self,
+        account_id: Option<i64>,
+        start: NaiveDate,
+        end: NaiveDate,
+        show_archived: bool,
+    ) -> Decimal {
+        self.window_starts(account_id, start, end, show_archived)
+            .into_iter()
+            .map(|(id, from)| {
+                self.value_on(id, end)
+                    - self.value_on(id, from)
+                    - self.net_flow(id, Some(from), end)
+            })
+            .sum()
+    }
+
+    pub fn invested_between(
+        &self,
+        account_id: Option<i64>,
+        start: NaiveDate,
+        end: NaiveDate,
+        show_archived: bool,
+    ) -> Decimal {
+        self.target_ids(account_id, show_archived)
+            .into_iter()
+            .map(|id| self.net_flow(id, Some(start), end))
+            .sum()
+    }
+
+    fn target_ids(&self, account_id: Option<i64>, show_archived: bool) -> Vec<i64> {
+        match account_id {
+            Some(id) => vec![id],
+            None => self
+                .visible_accounts(show_archived)
+                .iter()
+                .map(|account| account.id)
+                .collect(),
+        }
+    }
+
+    /// Weights each flow by how long it was actually invested.
+    pub fn modified_dietz(
+        &self,
+        account_id: Option<i64>,
+        start: NaiveDate,
+        end: NaiveDate,
+        show_archived: bool,
+    ) -> Option<Decimal> {
+        let days = (end - start).num_days();
+        if days <= 0 {
+            return None;
+        }
+
+        let starts = self.window_starts(account_id, start, end, show_archived);
+        let gain = self.gain_between(account_id, start, end, show_archived);
+        let weight = |date: NaiveDate| Decimal::from((end - date).num_days()) / Decimal::from(days);
+        let opening: Decimal = starts
+            .iter()
+            .map(|(id, from)| {
+                let value = self.value_on(*id, *from);
+                if *from > start {
+                    value * weight(*from)
+                } else {
+                    value
+                }
+            })
+            .sum();
+
+        let weighted: Decimal = self
+            .entries
+            .iter()
+            .filter(|entry| {
+                starts
+                    .iter()
+                    .any(|(id, from)| *id == entry.account_id && entry.date > *from)
+            })
+            .filter(|entry| entry.date <= end)
+            .map(|entry| entry.amount * entry.entry_kind.flow_sign() * weight(entry.date))
+            .sum();
+
+        let base = opening + weighted;
+        (base > Decimal::ZERO).then(|| (gain / base) * Decimal::from(100))
+    }
+
+    pub fn annualized_return(
+        &self,
+        account_id: Option<i64>,
+        start: NaiveDate,
+        end: NaiveDate,
+        show_archived: bool,
+    ) -> Option<f64> {
+        let years = (end - start).num_days() as f64 / 365.25;
+        if years <= 0.0 {
+            return None;
+        }
+
+        // Periods butt up at each year end, or a move on Jan 1 falls through the gap.
+        let mut compounded = 1.0f64;
+        let mut measured = false;
+        let mut period_start = start;
+        for year in start.year()..=end.year() {
+            let period_end = NaiveDate::from_ymd_opt(year, 12, 31)
+                .unwrap_or(end)
+                .min(end);
+            if period_end <= period_start {
+                continue;
+            }
+            if let Some(period) =
+                self.modified_dietz(account_id, period_start, period_end, show_archived)
+            {
+                compounded *= 1.0 + (period.to_f64().unwrap_or(0.0) / 100.0);
+                measured = true;
+            }
+            period_start = period_end;
+        }
+
+        // Zero is a real wipeout that both formulas below report as -100%.
+        if !measured || compounded < 0.0 {
+            return None;
+        }
+        // Annualizing a few weeks out to a year reads as a wild claim.
+        if years < 1.0 {
+            return Some((compounded - 1.0) * 100.0);
+        }
+        Some((compounded.powf(1.0 / years) - 1.0) * 100.0)
+    }
+
+    pub fn series(
+        &self,
+        start: NaiveDate,
+        end: NaiveDate,
+        points: usize,
+        account_id: Option<i64>,
+        show_archived: bool,
+    ) -> Vec<(NaiveDate, Decimal, Decimal)> {
+        let points = points.max(2);
+        let span = (end - start).num_days().max(1);
+        let ids = self.target_ids(account_id, show_archived);
+
+        (0..points)
+            .map(|step| {
+                let offset = span * step as i64 / (points as i64 - 1);
+                let date = start + Duration::days(offset);
+                let value = ids.iter().map(|id| self.value_on(*id, date)).sum();
+                let invested = ids.iter().map(|id| self.net_flow(*id, None, date)).sum();
+                (date, value, invested)
+            })
+            .collect()
+    }
+
+    pub fn yearly_breakdown(
+        &self,
+        account_id: Option<i64>,
+        show_archived: bool,
+    ) -> Vec<(i32, Decimal, Decimal, Option<Decimal>)> {
+        let ids = self.target_ids(account_id, show_archived);
+        let Some(first) = self
+            .entries
+            .iter()
+            .filter(|entry| ids.contains(&entry.account_id))
+            .map(|entry| entry.date)
+            .min()
+        else {
+            return Vec::new();
+        };
+        let today = chrono::Local::now().date_naive();
+
+        (first.year()..=today.year())
+            .map(|year| {
+                let start = NaiveDate::from_ymd_opt(year - 1, 12, 31).unwrap_or(first);
+                let end = NaiveDate::from_ymd_opt(year, 12, 31)
+                    .unwrap_or(today)
+                    .min(today);
+                (
+                    year,
+                    self.invested_between(account_id, start, end, show_archived),
+                    self.gain_between(account_id, start, end, show_archived),
+                    self.modified_dietz(account_id, start, end, show_archived),
+                )
+            })
+            .collect()
     }
 }

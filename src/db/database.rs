@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 /// The latest schema version understood by this build. Bump this and add a matching arm in
 /// [`SqliteDatabase::apply_migration`] whenever the schema changes.
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 5;
 
 #[derive(Debug, Clone)]
 pub struct SqliteDatabase {
@@ -207,6 +207,43 @@ impl SqliteDatabase {
                 }
                 Ok(())
             }
+            // v5: manually tracked investments. Valuations and cash flows are separate rows so
+            // growth is always derived, never typed in.
+            5 => conn
+                .execute_batch(
+                    "
+                    CREATE TABLE IF NOT EXISTS investment_accounts (
+                        id INTEGER PRIMARY KEY,
+                        ledger_id INTEGER NOT NULL REFERENCES ledgers(id) ON DELETE CASCADE,
+                        name TEXT NOT NULL COLLATE NOCASE,
+                        kind TEXT NOT NULL DEFAULT '',
+                        position INTEGER NOT NULL DEFAULT 0,
+                        archived INTEGER NOT NULL DEFAULT 0,
+                        UNIQUE(ledger_id, name)
+                    );
+                    CREATE TABLE IF NOT EXISTS investment_entries (
+                        id INTEGER PRIMARY KEY,
+                        account_id INTEGER NOT NULL
+                            REFERENCES investment_accounts(id) ON DELETE CASCADE,
+                        date TEXT NOT NULL,
+                        entry_kind TEXT NOT NULL
+                            CHECK (entry_kind IN ('Valuation', 'Contribution', 'Withdrawal')),
+                        amount TEXT NOT NULL,
+                        note TEXT NOT NULL DEFAULT '',
+                        -- Reserved for linking a flow to the transaction that funded it.
+                        -- Nothing reads it yet; it is here so adding that needs no migration.
+                        transaction_id INTEGER NULL
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_investment_entries_account
+                        ON investment_entries(account_id, date);
+                    -- Two different values for one account on one day is meaningless, so a
+                    -- second valuation replaces the first rather than stacking.
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_investment_valuation_day
+                        ON investment_entries(account_id, date)
+                        WHERE entry_kind = 'Valuation';
+                    ",
+                )
+                .map_err(|err| Error::other(format!("Migration v5 failed: {}", err))),
             _ => Ok(()),
         }
     }

@@ -1,5 +1,6 @@
 use crate::app::fields::{
-    AddEditField, AdvancedFilterField, CategoryEditField, FieldSet, RecurringField, SelectingField,
+    AddEditField, AdvancedFilterField, CategoryEditField, FieldSet, InvestmentAccountField,
+    InvestmentEntryField, RecurringField, SelectingField,
 };
 use crate::app::update_checker;
 use crate::config::{AppSettings, load_settings, save_settings};
@@ -7,6 +8,7 @@ use crate::csv_io::{load_seed_categories, load_transactions};
 use crate::db::budget_store::{BudgetStore, SqliteBudgetStore};
 use crate::db::category_store::{CategoryStore, SqliteCategoryStore};
 use crate::db::database::{SCHEMA_VERSION, SqliteDatabase};
+use crate::db::investment_store::{InvestmentStore, SqliteInvestmentStore};
 use crate::db::ledger_store::{DEFAULT_LEDGER_ID, LedgerRecord, LedgerStore, SqliteLedgerStore};
 use crate::db::transaction_store::{SqliteTransactionStore, TransactionStore};
 use crate::model::*;
@@ -56,6 +58,17 @@ pub enum AppMode {
     LedgerManager,
     LedgerEditor,
     ConfirmLedgerDelete,
+    Investments,
+    InvestmentDetail,
+    InvestmentAccountEditor,
+    InvestmentEntryEditor,
+    ConfirmInvestmentDelete,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvestmentDeleteTarget {
+    Account(i64),
+    Entry(i64),
 }
 
 #[derive(Debug)]
@@ -169,6 +182,21 @@ pub struct App {
     pub(crate) ledger_delete_id: Option<i64>,
     pub(crate) ledger_delete_prompt: String,
     pub(crate) ledger_copy_source_id: Option<i64>,
+    // Investments
+    pub(crate) portfolio: Portfolio,
+    pub(crate) investment_table_state: TableState,
+    pub(crate) investment_entry_table_state: TableState,
+    pub(crate) investment_range: InvestmentRange,
+    pub(crate) show_archived_investments: bool,
+    pub(crate) investment_detail_id: Option<i64>,
+    pub(crate) investment_account_fields: FieldSet<InvestmentAccountField, 6>,
+    pub(crate) investment_account_cursor: usize,
+    pub(crate) editing_investment_account_id: Option<i64>,
+    pub(crate) investment_entry_fields: FieldSet<InvestmentEntryField, 4>,
+    pub(crate) investment_entry_cursor: usize,
+    pub(crate) editing_investment_entry_id: Option<i64>,
+    pub(crate) investment_delete_target: Option<InvestmentDeleteTarget>,
+    pub(crate) investment_delete_prompt: String,
     // Budget
     pub(crate) hourly_rate: Option<Decimal>,
     pub(crate) show_hours: bool,
@@ -393,6 +421,20 @@ impl App {
             ledger_delete_id: None,
             ledger_delete_prompt: String::new(),
             ledger_copy_source_id: None,
+            portfolio: Portfolio::default(),
+            investment_table_state: TableState::default(),
+            investment_entry_table_state: TableState::default(),
+            investment_range: InvestmentRange::All,
+            show_archived_investments: false,
+            investment_detail_id: None,
+            investment_account_fields: Default::default(),
+            investment_account_cursor: 0,
+            editing_investment_account_id: None,
+            investment_entry_fields: Default::default(),
+            investment_entry_cursor: 0,
+            editing_investment_entry_id: None,
+            investment_delete_target: None,
+            investment_delete_prompt: String::new(),
             hourly_rate: loaded_settings.hourly_rate,
             show_hours: loaded_settings.show_hours.unwrap_or(false),
             fuzzy_search_mode: loaded_settings.fuzzy_search_mode.unwrap_or(false),
@@ -429,6 +471,9 @@ impl App {
             .and_then(|_| app.migrate_legacy_target_budget())
         {
             app.status_message = Some(format!("Budget load error: {}", err));
+        }
+        if let Err(err) = app.reload_portfolio() {
+            app.status_message = Some(format!("Investment load error: {}", err));
         }
         app.calculate_monthly_summaries();
         app.calculate_category_summaries();
@@ -522,6 +567,19 @@ impl App {
 
     pub(crate) fn budget_store(&self) -> SqliteBudgetStore {
         SqliteBudgetStore::new(SqliteDatabase::new(&self.database_path))
+    }
+
+    pub(crate) fn investment_store(&self) -> SqliteInvestmentStore {
+        SqliteInvestmentStore::new(
+            SqliteDatabase::new(&self.database_path),
+            self.active_ledger_id,
+        )
+    }
+
+    pub(crate) fn reload_portfolio(&mut self) -> Result<(), Error> {
+        let store = self.investment_store();
+        self.portfolio = Portfolio::new(store.list_accounts()?, store.list_entries()?);
+        Ok(())
     }
 
     /// One-shot move of the old global target out of config.json into per-ledger history,
@@ -628,6 +686,7 @@ impl App {
     pub(crate) fn reload_working_set(&mut self) -> Result<(), Error> {
         self.reload_categories_from_store()?;
         self.reload_transactions_from_db()?;
+        self.reload_portfolio()?;
         self.refresh_budget_years();
         self.reset_table_selection();
         Ok(())
@@ -976,39 +1035,41 @@ impl App {
                 .select(Some(new_selection));
         }
     }
+    /// Step whichever date field currently has focus, in whatever form is open.
     pub(crate) fn adjust_date(&mut self, amount: i64, unit: DateUnit) {
-        if self.add_edit_fields.focused() == AddEditField::Date {
-            if let Ok(current_date) = NaiveDate::parse_from_str(
-                &self.add_edit_fields[AddEditField::Date],
-                crate::model::DATE_FORMAT,
-            ) {
-                let new_date = match unit {
-                    DateUnit::Day => {
-                        if amount > 0 {
-                            current_date + Duration::days(amount)
-                        } else {
-                            current_date - Duration::days(-amount)
-                        }
-                    }
-                    DateUnit::Month => {
-                        // Use centralized month arithmetic
-                        crate::validation::add_months(current_date, amount as i32)
-                    }
-                };
-                self.add_edit_fields[AddEditField::Date] =
-                    new_date.format(crate::model::DATE_FORMAT).to_string();
-                self.add_edit_cursor = self.add_edit_fields[AddEditField::Date].len();
-                self.clear_status_message() // Clear status on successful adjustment
-            } else {
-                self.set_status_message(
-                    format!(
-                        "Error: Could not parse date '{}'. Use YYYY-MM-DD format.",
-                        self.add_edit_fields[AddEditField::Date]
-                    ),
-                    None,
-                );
+        let Some((content, _)) = self.active_date_input() else {
+            return;
+        };
+        let current = content.clone();
+
+        let Ok(current_date) = NaiveDate::parse_from_str(&current, crate::model::DATE_FORMAT)
+        else {
+            self.set_status_message(
+                format!(
+                    "Error: Could not parse date '{}'. Use YYYY-MM-DD format.",
+                    current
+                ),
+                None,
+            );
+            return;
+        };
+
+        let new_date = match unit {
+            DateUnit::Day => {
+                if amount > 0 {
+                    current_date + Duration::days(amount)
+                } else {
+                    current_date - Duration::days(-amount)
+                }
             }
+            DateUnit::Month => crate::validation::add_months(current_date, amount as i32),
+        };
+
+        if let Some((content, cursor)) = self.active_date_input() {
+            *content = new_date.format(crate::model::DATE_FORMAT).to_string();
+            *cursor = content.len();
         }
+        self.clear_status_message();
     }
     pub fn get_default_data_file_path() -> Result<PathBuf, Error> {
         const DATA_FILE_NAME: &str = "transactions.csv";

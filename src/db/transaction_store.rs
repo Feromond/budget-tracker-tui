@@ -320,8 +320,12 @@ mod tests {
     use super::*;
     use crate::db::category_store::CategoryStore;
     use crate::db::database::SCHEMA_VERSION;
+    use crate::db::investment_store::{InvestmentStore, SqliteInvestmentStore};
     use crate::db::ledger_store::{DEFAULT_LEDGER_ID, LedgerStore, SqliteLedgerStore};
-    use crate::model::BudgetSchedule;
+    use crate::model::{
+        BudgetSchedule, InvestmentAccountDraft, InvestmentEntryDraft, InvestmentEntryKind,
+        Portfolio,
+    };
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -850,6 +854,140 @@ mod tests {
             schedule.category_budget(record.id, BudgetMonth::new(2026, 6)),
             None
         );
+    }
+
+    fn investments(temp: &TempDb, ledger_id: i64) -> SqliteInvestmentStore {
+        SqliteInvestmentStore::new(SqliteDatabase::new(&temp.path), ledger_id)
+    }
+
+    fn entry(
+        account_id: i64,
+        date: &str,
+        entry_kind: InvestmentEntryKind,
+        amount: &str,
+    ) -> InvestmentEntryDraft {
+        InvestmentEntryDraft {
+            account_id,
+            date: NaiveDate::parse_from_str(date, DATE_FORMAT).unwrap(),
+            entry_kind,
+            amount: Decimal::from_str(amount).unwrap(),
+            note: String::new(),
+        }
+    }
+
+    fn day(date: &str) -> NaiveDate {
+        NaiveDate::parse_from_str(date, DATE_FORMAT).unwrap()
+    }
+
+    /// The identity the whole investments view rests on: money paid in is never growth.
+    #[test]
+    fn contributions_are_never_counted_as_investment_growth() {
+        let temp = TempDb::new();
+        let store = investments(&temp, DEFAULT_LEDGER_ID);
+        let account = store
+            .create_account(&InvestmentAccountDraft {
+                name: "TFSA".to_string(),
+                kind: "Brokerage".to_string(),
+                archived: false,
+            })
+            .unwrap();
+
+        // Opening position, then a deposit, then a fresh valuation.
+        store
+            .save_entry(&entry(
+                account,
+                "2024-01-01",
+                InvestmentEntryKind::Contribution,
+                "10000",
+            ))
+            .unwrap();
+        store
+            .save_entry(&entry(
+                account,
+                "2024-01-01",
+                InvestmentEntryKind::Valuation,
+                "10000",
+            ))
+            .unwrap();
+        store
+            .save_entry(&entry(
+                account,
+                "2024-07-01",
+                InvestmentEntryKind::Contribution,
+                "5000",
+            ))
+            .unwrap();
+        store
+            .save_entry(&entry(
+                account,
+                "2025-01-01",
+                InvestmentEntryKind::Valuation,
+                "17000",
+            ))
+            .unwrap();
+
+        let portfolio = Portfolio::new(
+            store.list_accounts().unwrap(),
+            store.list_entries().unwrap(),
+        );
+
+        // Between the deposit and the next valuation the money shows up as value, not gain.
+        assert_eq!(
+            portfolio.value_on(account, day("2024-08-01")),
+            Decimal::from(15000)
+        );
+        assert_eq!(
+            portfolio.gain_between(Some(account), day("2024-01-01"), day("2024-08-01"), false),
+            Decimal::ZERO
+        );
+
+        // Over the full span only the 2,000 the account actually earned counts.
+        let position = portfolio.position(account, day("2025-01-01"));
+        assert_eq!(position.value, Decimal::from(17000));
+        assert_eq!(position.invested, Decimal::from(15000));
+        assert_eq!(position.gain(), Decimal::from(2000));
+        assert_eq!(
+            portfolio.gain_between(Some(account), day("2024-01-01"), day("2025-01-01"), false),
+            Decimal::from(2000)
+        );
+    }
+
+    #[test]
+    fn copying_a_ledger_carries_its_investments_and_deleting_one_clears_them() {
+        let temp = TempDb::new();
+        let source = investments(&temp, DEFAULT_LEDGER_ID);
+        let account = source
+            .create_account(&InvestmentAccountDraft {
+                name: "Brokerage".to_string(),
+                kind: "Taxable".to_string(),
+                archived: false,
+            })
+            .unwrap();
+        source
+            .save_entry(&entry(
+                account,
+                "2025-01-01",
+                InvestmentEntryKind::Contribution,
+                "500",
+            ))
+            .unwrap();
+
+        let ledger_store = SqliteLedgerStore::new(SqliteDatabase::new(&temp.path));
+        let copy = ledger_store.copy(DEFAULT_LEDGER_ID, "Copy").unwrap();
+
+        let copied = investments(&temp, copy.id);
+        assert_eq!(copied.list_accounts().unwrap().len(), 1);
+        let copied_entries = copied.list_entries().unwrap();
+        assert_eq!(copied_entries.len(), 1);
+        assert_eq!(copied_entries[0].amount, Decimal::from(500));
+        // The copy stands on its own rows, not the source's.
+        assert_ne!(copied_entries[0].account_id, account);
+
+        ledger_store.delete(copy.id).unwrap();
+        assert!(copied.list_accounts().unwrap().is_empty());
+        assert!(copied.list_entries().unwrap().is_empty());
+        // The ledger that was copied from is untouched.
+        assert_eq!(source.list_entries().unwrap().len(), 1);
     }
 
     #[test]

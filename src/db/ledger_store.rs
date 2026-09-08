@@ -31,9 +31,10 @@ pub trait LedgerStore {
     /// Create a ledger holding a copy of every transaction in `source_id`.
     fn copy(&self, source_id: i64, name: &str) -> Result<LedgerRecord>;
     fn rename(&self, id: i64, name: &str) -> Result<()>;
-    /// Delete a ledger and every transaction it holds. Refuses to delete the last ledger.
+    /// Delete a ledger and everything it holds. Refuses to delete the last ledger.
     fn delete(&self, id: i64) -> Result<()>;
     fn transaction_count(&self, id: i64) -> Result<i64>;
+    fn investment_account_count(&self, id: i64) -> Result<i64>;
     fn set_active_id(&self, id: i64) -> Result<()>;
 }
 
@@ -189,6 +190,33 @@ impl LedgerStore for SqliteLedgerStore {
         )
         .map_err(|err| Error::other(format!("Failed to copy budgets: {}", err)))?;
 
+        // Accounts first, then their entries remapped onto the new ids.
+        tx.execute(
+            "
+            INSERT INTO investment_accounts (ledger_id, name, kind, position, archived)
+            SELECT ?1, name, kind, position, archived
+            FROM investment_accounts
+            WHERE ledger_id = ?2
+            ",
+            params![ledger.id, source_id],
+        )
+        .map_err(|err| Error::other(format!("Failed to copy investment accounts: {}", err)))?;
+
+        tx.execute(
+            "
+            INSERT INTO investment_entries
+                (account_id, date, entry_kind, amount, note, transaction_id)
+            SELECT copy.id, e.date, e.entry_kind, e.amount, e.note, e.transaction_id
+            FROM investment_entries e
+            JOIN investment_accounts source ON source.id = e.account_id
+            JOIN investment_accounts copy
+                ON copy.ledger_id = ?1 AND copy.name = source.name
+            WHERE source.ledger_id = ?2
+            ",
+            params![ledger.id, source_id],
+        )
+        .map_err(|err| Error::other(format!("Failed to copy investment entries: {}", err)))?;
+
         tx.commit()
             .map_err(|err| Error::other(format!("Failed to commit ledger copy: {}", err)))?;
         Ok(ledger)
@@ -244,6 +272,20 @@ impl LedgerStore for SqliteLedgerStore {
             .map_err(|err| {
                 Error::other(format!("Failed to delete ledger transactions: {}", err))
             })?;
+        // Entries go through the accounts' cascade, but only if foreign keys are on for this
+        // connection, so clear them explicitly rather than relying on the pragma.
+        tx.execute(
+            "
+            DELETE FROM investment_entries
+            WHERE account_id IN (SELECT id FROM investment_accounts WHERE ledger_id = ?1)
+            ",
+            [id],
+        )
+        .map_err(|err| Error::other(format!("Failed to delete investment entries: {}", err)))?;
+        tx.execute("DELETE FROM investment_accounts WHERE ledger_id = ?1", [id])
+            .map_err(|err| {
+                Error::other(format!("Failed to delete investment accounts: {}", err))
+            })?;
         let deleted = tx
             .execute("DELETE FROM ledgers WHERE id = ?1", [id])
             .map_err(|err| Error::other(format!("Failed to delete ledger: {}", err)))?;
@@ -267,6 +309,16 @@ impl LedgerStore for SqliteLedgerStore {
             |row| row.get(0),
         )
         .map_err(|err| Error::other(format!("Failed to count ledger transactions: {}", err)))
+    }
+
+    fn investment_account_count(&self, id: i64) -> Result<i64> {
+        let conn = self.ready_connection()?;
+        conn.query_row(
+            "SELECT COUNT(*) FROM investment_accounts WHERE ledger_id = ?1",
+            [id],
+            |row| row.get(0),
+        )
+        .map_err(|err| Error::other(format!("Failed to count investment accounts: {}", err)))
     }
 
     fn set_active_id(&self, id: i64) -> Result<()> {

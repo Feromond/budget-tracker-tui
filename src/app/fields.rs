@@ -211,6 +211,31 @@ form_fields! {
     }
 }
 
+form_fields! {
+    /// The opening position fields only apply when creating an account. Editing one leaves
+    /// them inert, since by then its history is made of real entries you can edit directly.
+    pub enum InvestmentAccountField {
+        Name => FieldKind::Text, "Account Name";
+        Kind => FieldKind::Text, "Type", "(Optional - e.g. Brokerage, Retirement (RRSP), Crypto)";
+        Status => FieldKind::Toggle, "Status", "(◀/▶ to toggle)";
+        OpeningValue => FieldKind::Amount, "Starting Value", "(Optional - what it is worth now)";
+        OpeningInvested => FieldKind::Amount, "Contributed So Far",
+            "(Optional - defaults to the starting value)";
+        OpeningDate => FieldKind::Date, "As Of (YYYY-MM-DD)",
+            "(◀/▶ or +/- for days, Shift+◀/▶ for months)";
+    }
+}
+
+form_fields! {
+    pub enum InvestmentEntryField {
+        Date => FieldKind::Date, "Date (YYYY-MM-DD)",
+            "(◀/▶ or +/- for days, Shift+◀/▶ for months, Digits to enter)";
+        EntryKind => FieldKind::Toggle, "Entry", "(◀/▶ to toggle)";
+        Amount => FieldKind::Amount, "Amount";
+        Note => FieldKind::Text, "Note", "(Optional)";
+    }
+}
+
 /// Which form a category picker was opened from. The two forms have separate field sets, so a
 /// shared index could send the picked value back to the wrong one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

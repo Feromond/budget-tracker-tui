@@ -99,6 +99,14 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 ),
             ),
             KeyBindingInfo::new(
+                "i",
+                "Investments",
+                "Actions",
+                Some(
+                    "Track what your investments are worth over time. You record valuations and contributions separately, so growth is always derived rather than typed in.",
+                ),
+            ),
+            KeyBindingInfo::new(
                 "o",
                 "Settings",
                 "Actions",
@@ -571,6 +579,124 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("y", "Confirm delete", "Actions", None),
             KeyBindingInfo::new("n/Esc", "Cancel delete", "Actions", None),
             KeyBindingInfo::new("Ctrl+H", "Show Keybindings Help", "System", None),
+        ],
+        AppMode::Investments => vec![
+            KeyBindingInfo::new("↑/↓", "Navigate accounts", "Navigation", None),
+            KeyBindingInfo::new(
+                "←/→",
+                "Change time range",
+                "Navigation",
+                Some(
+                    "Cycles the window every figure is measured over: YTD, 1Y, 3Y, 5Y, All. The chart, the period gain, and the annualized return all follow it.",
+                ),
+            ),
+            KeyBindingInfo::new(
+                "Enter",
+                "Open account detail",
+                "Actions",
+                Some(
+                    "Shows the account's full entry history, its own growth chart, and a year-by-year breakdown of what you contributed versus what it earned.",
+                ),
+            ),
+            KeyBindingInfo::new(
+                "v",
+                "Record a valuation",
+                "Actions",
+                Some(
+                    "Records what the account is worth today. This is the one to press whenever you check on your investments. Growth is worked out from the change since your last valuation, minus anything you paid in. To record money in or out instead, open the account with Enter and press 'a'.",
+                ),
+            ),
+            KeyBindingInfo::new(
+                "a",
+                "Add investment account",
+                "Actions",
+                Some(
+                    "Creates an account. If it already exists in real life, give it a starting value and how much of that you contributed, so growth is measured from the right place rather than counting your whole balance as a gain.",
+                ),
+            ),
+            KeyBindingInfo::new("e", "Edit selected account", "Actions", None),
+            KeyBindingInfo::new(
+                "d",
+                "Delete selected account",
+                "Actions",
+                Some("Permanently deletes the account and its entire history, after confirmation."),
+            ),
+            KeyBindingInfo::new(
+                "A",
+                "Show/hide archived accounts",
+                "Actions",
+                Some(
+                    "Archived accounts keep their history so past performance stays correct, but stay out of the table and the totals until you show them.",
+                ),
+            ),
+            KeyBindingInfo::new("q/Esc", "Back to transactions", "System", None),
+        ],
+        AppMode::InvestmentDetail => vec![
+            KeyBindingInfo::new("↑/↓", "Navigate entries", "Navigation", None),
+            KeyBindingInfo::new("←/→", "Change time range", "Navigation", None),
+            KeyBindingInfo::new(
+                "v",
+                "Record a valuation",
+                "Actions",
+                Some("Shortcut for adding an entry with the type already set to Valuation."),
+            ),
+            KeyBindingInfo::new(
+                "a",
+                "Add an entry",
+                "Actions",
+                Some(
+                    "Opens the entry form, set to Contribution. Use the Entry field to switch it to a withdrawal or a valuation.",
+                ),
+            ),
+            KeyBindingInfo::new("e/Enter", "Edit selected entry", "Actions", None),
+            KeyBindingInfo::new("d", "Delete selected entry", "Actions", None),
+            KeyBindingInfo::new("q/Esc", "Back to the accounts list", "System", None),
+        ],
+        AppMode::InvestmentAccountEditor => vec![
+            KeyBindingInfo::new("Tab/↑/↓", "Move between fields", "Navigation", None),
+            KeyBindingInfo::new("←/→", "Move cursor, or toggle status", "Navigation", None),
+            KeyBindingInfo::new(
+                "Starting Value",
+                "What the account is worth now",
+                "Fields",
+                Some(
+                    "Optional, and only offered when creating an account. Writes an opening valuation so an account you already held does not report its whole balance as a gain.",
+                ),
+            ),
+            KeyBindingInfo::new(
+                "Contributed So Far",
+                "Your cost basis",
+                "Fields",
+                Some(
+                    "Optional, defaults to the starting value. Set it lower when part of the balance is already growth you earned before you started tracking.",
+                ),
+            ),
+            KeyBindingInfo::new("Enter", "Save account", "Actions", None),
+            KeyBindingInfo::new("Esc", "Cancel", "System", None),
+        ],
+        AppMode::InvestmentEntryEditor => vec![
+            KeyBindingInfo::new("Tab/↑/↓", "Move between fields", "Navigation", None),
+            KeyBindingInfo::new(
+                "←/→",
+                "Move cursor, step the date, or toggle the entry",
+                "Navigation",
+                None,
+            ),
+            KeyBindingInfo::new("Shift+←/→", "Step the date by month", "Navigation", None),
+            KeyBindingInfo::new(
+                "Entry",
+                "Valuation, Contribution or Withdrawal",
+                "Fields",
+                Some(
+                    "A valuation records what the account is worth. A contribution or withdrawal records money crossing the boundary. Keeping them apart is what lets growth be derived rather than guessed.",
+                ),
+            ),
+            KeyBindingInfo::new("Enter", "Save entry", "Actions", None),
+            KeyBindingInfo::new("Esc", "Cancel", "System", None),
+        ],
+        AppMode::ConfirmInvestmentDelete => vec![
+            KeyBindingInfo::new("y", "Confirm deletion", "Actions", None),
+            KeyBindingInfo::new("n/Esc", "Cancel deletion", "Actions", None),
         ],
         AppMode::LedgerManager => vec![
             KeyBindingInfo::new("↑/↓", "Navigate ledgers", "Navigation", None),

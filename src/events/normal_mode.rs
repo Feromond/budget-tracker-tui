@@ -33,6 +33,7 @@ pub fn handle_normal_mode(app: &mut App, key_event: KeyEvent) {
         (KeyCode::Char('c'), KeyModifiers::CONTROL) => app.copy_transaction(),
         (KeyCode::Char('c'), _) => app.enter_category_summary_mode(),
         (KeyCode::Char('b'), _) => app.enter_budget_mode(),
+        (KeyCode::Char('i'), _) => app.enter_investments_mode(),
         (KeyCode::Char('o'), _) => app.enter_settings_mode(),
         // Sorting
         (KeyCode::Char('1'), _) | (KeyCode::F(1), _) => app.set_sort_column(SortColumn::Date),

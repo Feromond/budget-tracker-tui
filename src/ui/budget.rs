@@ -1,6 +1,6 @@
 use crate::app::state::{App, BudgetCategoryComparison, BudgetEditTarget};
 use crate::model::{BudgetEditScope, BudgetMonth};
-use crate::ui::helpers::{format_amount, month_to_color, month_to_short_str};
+use crate::ui::helpers::{format_amount, format_signed_amount, month_to_color, month_to_short_str};
 use ratatui::prelude::*;
 use ratatui::text::Line;
 use ratatui::widgets::{
@@ -19,14 +19,6 @@ fn budget_panel_block(title: Line<'static>, borders: Borders) -> Block<'static> 
         .title(title)
         .borders(borders)
         .border_style(Style::default().fg(PANEL_CHROME_COLOR))
-}
-
-fn format_budget_variance(variance: Decimal) -> String {
-    if variance >= Decimal::ZERO {
-        format!("+{}", format_amount(&variance))
-    } else {
-        format_amount(&variance)
-    }
 }
 
 fn usage_color(actual: Decimal, target: Decimal) -> Color {
@@ -94,7 +86,7 @@ fn comparison_row(comparison: &BudgetCategoryComparison) -> Row<'static> {
             Line::from(format_amount(&comparison.actual_expense)).alignment(Alignment::Right),
         )
         .style(spent_style),
-        Cell::from(Line::from(format_budget_variance(remaining)).alignment(Alignment::Right))
+        Cell::from(Line::from(format_signed_amount(&remaining)).alignment(Alignment::Right))
             .style(remaining_style),
         Cell::from(
             Line::from(usage_percent(comparison.actual_expense, comparison.budget))
@@ -416,7 +408,7 @@ pub fn render_budget_view(f: &mut Frame, app: &mut App, area: Rect) {
         Span::styled("Spare:  ", Style::default().add_modifier(Modifier::BOLD)),
         Span::styled(
             match unallocated_budget {
-                Some(value) => format_budget_variance(value),
+                Some(value) => format_signed_amount(&value),
                 None => "N/A".to_string(),
             },
             match unallocated_budget {
@@ -484,7 +476,7 @@ pub fn render_budget_view(f: &mut Frame, app: &mut App, area: Rect) {
             Span::styled("Left:   ", Style::default().add_modifier(Modifier::BOLD)),
             Span::styled(
                 match remaining_budget {
-                    Some(value) => format_budget_variance(value),
+                    Some(value) => format_signed_amount(&value),
                     None => "N/A".to_string(),
                 },
                 match remaining_budget {
@@ -707,7 +699,7 @@ pub fn render_budget_view(f: &mut Frame, app: &mut App, area: Rect) {
             Line::from(vec![
                 Span::styled("Left:     ", Style::default().add_modifier(Modifier::BOLD)),
                 Span::styled(
-                    format_budget_variance(remaining),
+                    format_signed_amount(&remaining),
                     if remaining < Decimal::ZERO {
                         Style::default().fg(Color::LightRed)
                     } else {

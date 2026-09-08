@@ -166,7 +166,7 @@ impl App {
     }
 
     pub(crate) fn is_valuation_stale(&self, account_id: i64) -> bool {
-        match self.portfolio.last_valuation_date(account_id) {
+        match self.portfolio.last_valuation_date(account_id, self.today()) {
             Some(date) => (self.today() - date).num_days() > STALE_VALUATION_DAYS,
             None => false,
         }

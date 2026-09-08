@@ -686,13 +686,8 @@ impl Portfolio {
         })
     }
 
-    pub fn last_valuation_date(&self, account_id: i64) -> Option<NaiveDate> {
-        self.entries
-            .iter()
-            .rfind(|entry| {
-                entry.account_id == account_id && entry.entry_kind == InvestmentEntryKind::Valuation
-            })
-            .map(|entry| entry.date)
+    pub fn last_valuation_date(&self, account_id: i64, on: NaiveDate) -> Option<NaiveDate> {
+        self.last_valuation(account_id, on).map(|entry| entry.date)
     }
 
     /// `after` is exclusive so a flow never lands in two adjacent periods.
@@ -718,7 +713,7 @@ impl Portfolio {
         InvestmentPosition {
             value: self.value_on(account_id, on),
             invested: self.net_flow(account_id, None, on),
-            as_of: self.last_valuation_date(account_id),
+            as_of: self.last_valuation_date(account_id, on),
         }
     }
 
@@ -736,7 +731,7 @@ impl Portfolio {
                 .sum(),
             as_of: accounts
                 .iter()
-                .filter_map(|account| self.last_valuation_date(account.id))
+                .filter_map(|account| self.last_valuation_date(account.id, on))
                 .min(),
         }
     }
@@ -749,22 +744,22 @@ impl Portfolio {
     }
 
     /// An account counts only from its own first entry, never from before you tracked it.
-    fn effective_start(&self, account_id: i64, start: NaiveDate) -> NaiveDate {
-        match self.first_entry(account_id) {
-            Some(first) => start.max(first),
-            None => start,
-        }
-    }
-
+    /// Each account paired with the date it starts counting from. Accounts that had no
+    /// entries yet are dropped, or subtracting their later opening value invents a loss in
+    /// a period before they existed.
     fn window_starts(
         &self,
         account_id: Option<i64>,
         start: NaiveDate,
+        end: NaiveDate,
         show_archived: bool,
     ) -> Vec<(i64, NaiveDate)> {
         self.target_ids(account_id, show_archived)
             .into_iter()
-            .map(|id| (id, self.effective_start(id, start)))
+            .filter_map(|id| {
+                let first = self.first_entry(id)?;
+                (first <= end).then_some((id, start.max(first)))
+            })
             .collect()
     }
 
@@ -775,7 +770,7 @@ impl Portfolio {
         end: NaiveDate,
         show_archived: bool,
     ) -> Decimal {
-        self.window_starts(account_id, start, show_archived)
+        self.window_starts(account_id, start, end, show_archived)
             .into_iter()
             .map(|(id, from)| {
                 self.value_on(id, end)
@@ -822,12 +817,20 @@ impl Portfolio {
             return None;
         }
 
-        let starts = self.window_starts(account_id, start, show_archived);
+        let starts = self.window_starts(account_id, start, end, show_archived);
+        let gain = self.gain_between(account_id, start, end, show_archived);
+        let weight = |date: NaiveDate| Decimal::from((end - date).num_days()) / Decimal::from(days);
         let opening: Decimal = starts
             .iter()
-            .map(|(id, from)| self.value_on(*id, *from))
+            .map(|(id, from)| {
+                let value = self.value_on(*id, *from);
+                if *from > start {
+                    value * weight(*from)
+                } else {
+                    value
+                }
+            })
             .sum();
-        let gain = self.gain_between(account_id, start, end, show_archived);
 
         let weighted: Decimal = self
             .entries
@@ -838,11 +841,7 @@ impl Portfolio {
                     .any(|(id, from)| *id == entry.account_id && entry.date > *from)
             })
             .filter(|entry| entry.date <= end)
-            .map(|entry| {
-                let remaining = (end - entry.date).num_days();
-                let weight = Decimal::from(remaining) / Decimal::from(days);
-                entry.amount * entry.entry_kind.flow_sign() * weight
-            })
+            .map(|entry| entry.amount * entry.entry_kind.flow_sign() * weight(entry.date))
             .sum();
 
         let base = opening + weighted;

@@ -5,6 +5,7 @@ use crate::app::fields::{
 use crate::app::update_checker;
 use crate::config::{AppSettings, load_settings, save_settings};
 use crate::csv_io::{load_seed_categories, load_transactions};
+use crate::db::backup::{self, BackupEntry, BackupKind};
 use crate::db::budget_store::{BudgetStore, SqliteBudgetStore};
 use crate::db::category_store::{CategoryStore, SqliteCategoryStore};
 use crate::db::database::{SCHEMA_VERSION, SqliteDatabase};
@@ -58,6 +59,9 @@ pub enum AppMode {
     LedgerManager,
     LedgerEditor,
     ConfirmLedgerDelete,
+    BackupManager,
+    ConfirmBackupRestore,
+    ConfirmBackupDelete,
     Investments,
     InvestmentDetail,
     InvestmentAccountEditor,
@@ -182,6 +186,12 @@ pub struct App {
     pub(crate) ledger_delete_id: Option<i64>,
     pub(crate) ledger_delete_prompt: String,
     pub(crate) ledger_copy_source_id: Option<i64>,
+    pub(crate) backup_entries: Vec<BackupEntry>,
+    pub(crate) backup_table_state: TableState,
+    pub(crate) backup_confirm_prompt: String,
+    pub(crate) backups_enabled: bool,
+    pub(crate) backup_keep: u32,
+    pub(crate) backup_instance_id: String,
     // Investments
     pub(crate) portfolio: Portfolio,
     pub(crate) investment_table_state: TableState,
@@ -255,6 +265,19 @@ impl App {
                 None => Self::resolve_default_database_path(&initial_data_file_path),
             };
 
+        // Back up before opening the database or running migrations.
+        let backup_instance_id = Self::resolve_instance_id(&loaded_settings);
+        let backups_enabled = loaded_settings.backups_enabled.unwrap_or(true);
+        let backup_keep = loaded_settings
+            .backup_keep
+            .unwrap_or(backup::DEFAULT_KEEP)
+            .clamp(1, backup::MAX_KEEP);
+        let backup_msg = backups_enabled
+            .then(|| {
+                Self::run_startup_backup(&initial_database_path, &backup_instance_id, backup_keep)
+            })
+            .flatten();
+
         // --- Resolve the ledger to open before anything reads the transactions table ---
         let (ledgers, active_ledger_id, ledger_error_msg) =
             match Self::ledger_store_for_path(&initial_database_path).initialize() {
@@ -324,6 +347,7 @@ impl App {
             load_seed_error_msg,
             migration_msg,
             ledger_error_msg,
+            backup_msg,
         ]
         .into_iter()
         .flatten()
@@ -421,6 +445,12 @@ impl App {
             ledger_delete_id: None,
             ledger_delete_prompt: String::new(),
             ledger_copy_source_id: None,
+            backup_entries: Vec::new(),
+            backup_table_state: TableState::default(),
+            backup_confirm_prompt: String::new(),
+            backups_enabled,
+            backup_keep,
+            backup_instance_id,
             portfolio: Portfolio::default(),
             investment_table_state: TableState::default(),
             investment_entry_table_state: TableState::default(),
@@ -528,6 +558,52 @@ impl App {
                     )),
                 ),
             },
+        }
+    }
+
+    fn resolve_instance_id(settings: &AppSettings) -> String {
+        if let Some(existing) = settings
+            .instance_id
+            .as_ref()
+            .filter(|id| !id.trim().is_empty())
+        {
+            return existing.clone();
+        }
+
+        let generated = backup::generate_instance_id();
+        // Reload settings to preserve any changes since startup.
+        if let Ok(mut stored) = load_settings() {
+            stored.instance_id = Some(generated.clone());
+            let _ = save_settings(&stored);
+        }
+        generated
+    }
+
+    fn run_startup_backup(database_path: &Path, instance: &str, keep: u32) -> Option<String> {
+        if !backup::database_has_content(database_path) {
+            return None;
+        }
+
+        let kind = match backup::pending_migration_version(database_path) {
+            Some(version) => BackupKind::PreMigrate(version),
+            None => match backup::has_auto_backup_today(database_path, instance) {
+                Ok(true) => return None,
+                Ok(false) => BackupKind::Auto,
+                Err(err) => return Some(format!("Backup check failed: {}", err)),
+            },
+        };
+
+        match backup::create(database_path, instance, kind) {
+            Ok(entry) => {
+                let _ = backup::prune(database_path, instance, keep);
+                matches!(kind, BackupKind::PreMigrate(_)).then(|| {
+                    format!(
+                        "Upgrading the database. Backed up first to {}.",
+                        entry.path.display()
+                    )
+                })
+            }
+            Err(err) => Some(format!("Backup failed: {}. Opening anyway.", err)),
         }
     }
 

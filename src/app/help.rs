@@ -742,6 +742,50 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("y", "Confirm deletion", "Actions", None),
             KeyBindingInfo::new("n/Esc", "Cancel", "Actions", None),
         ],
+        AppMode::BackupManager => vec![
+            KeyBindingInfo::new("↑/↓", "Navigate backups", "Navigation", None),
+            KeyBindingInfo::new(
+                "Enter",
+                "Restore the selected backup",
+                "Actions",
+                Some(
+                    "Asks for confirmation, then saves a 'Before restore' backup of the current database before replacing it.",
+                ),
+            ),
+            KeyBindingInfo::new(
+                "b",
+                "Back up now",
+                "Actions",
+                Some("Creates a manual snapshot, kept until you delete it."),
+            ),
+            KeyBindingInfo::new(
+                "d",
+                "Delete the selected backup",
+                "Actions",
+                Some("Asks for confirmation, then permanently deletes the snapshot file."),
+            ),
+            KeyBindingInfo::new(
+                "Kinds",
+                "Automatic, Manual, Before upgrade, Before restore",
+                "Reference",
+                Some(
+                    "When enabled, startup takes a daily snapshot, or a pre-upgrade snapshot if needed. Older daily snapshots are cleaned up using the limit in Settings. Other kinds stay until you delete them.",
+                ),
+            ),
+            KeyBindingInfo::new(
+                "Device",
+                "Which install wrote the backup",
+                "Reference",
+                Some(
+                    "Backups are stored beside the database and appear here if synced from another machine. The Device column matches IDs from config.json, not the hardware. Automatic cleanup only removes snapshots with the current ID; copying config.json shares that ID.",
+                ),
+            ),
+            KeyBindingInfo::new("q/Esc", "Back to Settings", "System", None),
+        ],
+        AppMode::ConfirmBackupRestore | AppMode::ConfirmBackupDelete => vec![
+            KeyBindingInfo::new("y", "Confirm", "Actions", None),
+            KeyBindingInfo::new("n/Esc", "Cancel", "Actions", None),
+        ],
         AppMode::RecurringSettings => vec![
             KeyBindingInfo::new("Tab/↑/↓", "Navigate fields", "Navigation", None),
             KeyBindingInfo::new(

@@ -1,4 +1,5 @@
 mod add_edit_mode;
+mod backup_mode;
 mod budget_mode;
 mod category_manager_mode;
 mod filter_mode;

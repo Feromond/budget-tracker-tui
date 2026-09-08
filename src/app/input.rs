@@ -254,39 +254,43 @@ impl App {
     }
 
     pub(crate) fn move_cursor_left_settings(&mut self) {
-        let idx = self.settings_state.selected_index;
-        if let Some(item) = self.settings_state.items.get_mut(idx) {
-            if item.setting_type == crate::app::settings_types::SettingType::Action {
-                return;
-            }
-            if item.setting_type == crate::app::settings_types::SettingType::Toggle {
-                // Left sets to No
-                item.value = " No ▶".to_string();
-                self.settings_state.edit_cursor = item.value.len();
-                return;
-            }
+        if self.set_settings_toggle(false) {
+            return;
         }
-
         if self.settings_state.edit_cursor > 0 {
             self.settings_state.edit_cursor -= 1;
         }
     }
 
-    pub(crate) fn move_cursor_right_settings(&mut self) {
+    /// Returns true when the row should skip text-cursor movement.
+    fn set_settings_toggle(&mut self, enabled: bool) -> bool {
         let idx = self.settings_state.selected_index;
-        if let Some(item) = self.settings_state.items.get_mut(idx) {
-            if item.setting_type == crate::app::settings_types::SettingType::Action {
-                return;
-            }
-            if item.setting_type == crate::app::settings_types::SettingType::Toggle {
-                // Right sets to Yes
-                item.value = "◀ Yes ".to_string();
-                self.settings_state.edit_cursor = item.value.len();
-                return;
-            }
-            if self.settings_state.edit_cursor < item.value.len() {
-                self.settings_state.edit_cursor += 1;
-            }
+        let Some(item) = self.settings_state.items.get_mut(idx) else {
+            return false;
+        };
+        match item.setting_type {
+            crate::app::settings_types::SettingType::Action => return true,
+            crate::app::settings_types::SettingType::Toggle => {}
+            _ => return false,
+        }
+
+        item.value = crate::app::settings::toggle_value(enabled);
+        self.settings_state.edit_cursor = self.settings_state.items[idx].value.len();
+        self.update_settings_visibility();
+        true
+    }
+
+    pub(crate) fn move_cursor_right_settings(&mut self) {
+        if self.set_settings_toggle(true) {
+            return;
+        }
+        if let Some(item) = self
+            .settings_state
+            .items
+            .get(self.settings_state.selected_index)
+            && self.settings_state.edit_cursor < item.value.len()
+        {
+            self.settings_state.edit_cursor += 1;
         }
     }
 

@@ -5,6 +5,10 @@ use crate::csv_io::load_seed_categories;
 use chrono::Duration;
 use std::path::PathBuf;
 
+pub(crate) fn toggle_value(enabled: bool) -> String {
+    if enabled { "◀ Yes " } else { " No ▶" }.to_string()
+}
+
 impl App {
     // --- Settings Mode Logic ---
     // Handles entering/exiting settings mode, saving settings, and resetting the data file path.
@@ -58,6 +62,39 @@ impl App {
             "Press Enter to choose a destination and export all transactions to CSV.",
         );
 
+        // --- Backups Section ---
+        self.settings_state.add_header("Backups");
+
+        let backups_enabled = loaded_settings.backups_enabled.unwrap_or(true);
+        self.settings_state.add_setting(
+            SettingKey::AutomaticBackups,
+            "Automatic Backups",
+            toggle_value(backups_enabled),
+            SettingType::Toggle,
+            "Take daily and pre-upgrade snapshots at startup. Turning this off disables both.",
+        );
+
+        if backups_enabled {
+            self.settings_state.add_setting(
+                SettingKey::BackupsToKeep,
+                "Automatic Backups to Keep",
+                self.backup_keep.to_string(),
+                SettingType::Integer,
+                &format!(
+                    "How many automatic snapshots to keep for this install's ID (1-{}). Other kinds stay until you delete them.",
+                    crate::db::backup::MAX_KEEP
+                ),
+            );
+        }
+
+        self.settings_state.add_setting(
+            SettingKey::ManageBackups,
+            "Manage Backups",
+            "Browse and restore".to_string(),
+            SettingType::Action,
+            "Press Enter to create, restore, or delete backups.",
+        );
+
         // --- Transaction View Section ---
         self.settings_state.add_header("Transaction View");
 
@@ -75,15 +112,10 @@ impl App {
 
         // Show Hours is only relevant once an hourly rate is set.
         if !hourly_rate_val.is_empty() {
-            let show_hours_val = if loaded_settings.show_hours.unwrap_or(false) {
-                "◀ Yes "
-            } else {
-                " No ▶"
-            };
             self.settings_state.add_setting(
                 SettingKey::ShowHours,
                 "Show Costs in Hours",
-                show_hours_val.to_string(),
+                toggle_value(loaded_settings.show_hours.unwrap_or(false)),
                 SettingType::Toggle,
                 "Toggle to display transaction amounts as hours worked.",
             );
@@ -107,15 +139,10 @@ impl App {
         // --- Input Preferences Section ---
         self.settings_state.add_header("Input Preferences");
 
-        let fuzzy_search_val = if loaded_settings.fuzzy_search_mode.unwrap_or(false) {
-            "◀ Yes "
-        } else {
-            " No ▶"
-        };
         self.settings_state.add_setting(
             SettingKey::FuzzySearch,
             "Fuzzy Search Categories",
-            fuzzy_search_val.to_string(),
+            toggle_value(loaded_settings.fuzzy_search_mode.unwrap_or(false)),
             SettingType::Toggle,
             "Toggle to enable fuzzy searching for categories/subcategories.",
         );
@@ -123,15 +150,10 @@ impl App {
         // --- General Preferences Section ---
         self.settings_state.add_header("General Preferences");
 
-        let hide_help_bar_val = if loaded_settings.hide_help_bar.unwrap_or(false) {
-            "◀ Yes "
-        } else {
-            " No ▶"
-        };
         self.settings_state.add_setting(
             SettingKey::HideHelpBar,
             "Hide Help Bar (NOT RECOMMENDED)",
-            hide_help_bar_val.to_string(),
+            toggle_value(loaded_settings.hide_help_bar.unwrap_or(false)),
             SettingType::Toggle,
             "Toggle to hide the bottom help bar (Ctrl+H will still work).",
         );
@@ -183,6 +205,8 @@ impl App {
         let mut new_database_path_str = String::new();
         let mut hourly_rate_str = String::new();
         let mut forecast_months_str = String::new();
+        let mut backup_keep_str = String::new();
+        let mut backups_enabled_val = None;
         let mut show_hours_val = None;
         let mut fuzzy_search_val = None;
         let mut hide_help_bar_val = None;
@@ -198,6 +222,12 @@ impl App {
             .get_value(SettingKey::RecurringForecastMonths)
         {
             forecast_months_str = val.trim().to_string();
+        }
+        if let Some(val) = self.settings_state.get_value(SettingKey::BackupsToKeep) {
+            backup_keep_str = val.trim().to_string();
+        }
+        if let Some(val) = self.settings_state.get_value(SettingKey::AutomaticBackups) {
+            backups_enabled_val = Some(val.to_lowercase().contains("yes"));
         }
         if let Some(val) = self.settings_state.get_value(SettingKey::ShowHours) {
             show_hours_val = Some(val.to_lowercase().contains("yes"));
@@ -233,6 +263,24 @@ impl App {
                         format!(
                             "Error: Forecast months must be a whole number between 0 and {}.",
                             crate::recurring::MAX_FORECAST_MONTHS
+                        ),
+                        None,
+                    );
+                    return;
+                }
+            }
+        };
+
+        let backup_keep = if backup_keep_str.is_empty() {
+            self.backup_keep
+        } else {
+            match backup_keep_str.parse::<u32>() {
+                Ok(val) if (1..=crate::db::backup::MAX_KEEP).contains(&val) => val,
+                _ => {
+                    self.set_status_message(
+                        format!(
+                            "Error: Backups to keep must be a whole number between 1 and {}.",
+                            crate::db::backup::MAX_KEEP
                         ),
                         None,
                     );
@@ -280,6 +328,9 @@ impl App {
             fuzzy_search_mode: fuzzy_search_val,
             hide_help_bar: hide_help_bar_val,
             recurring_forecast_months: Some(forecast_months),
+            backups_enabled: backups_enabled_val,
+            backup_keep: Some(backup_keep),
+            instance_id: Some(self.backup_instance_id.clone()),
         };
         if let Err(e) = save_settings(&settings) {
             self.set_status_message(format!("Error saving config file: {}", e), None);
@@ -315,6 +366,8 @@ impl App {
             Some(Duration::seconds(3)),
         );
         self.hourly_rate = hourly_rate;
+        self.backups_enabled = backups_enabled_val.unwrap_or(true);
+        self.backup_keep = backup_keep;
         self.show_hours = show_hours_val.unwrap_or(false);
         self.fuzzy_search_mode = fuzzy_search_val.unwrap_or(false);
         self.hide_help_bar = hide_help_bar_val.unwrap_or(false);
@@ -367,6 +420,7 @@ impl App {
             Some(SettingKey::ExportTransactions) => {
                 self.open_transaction_io(AppMode::ExportTransactions)
             }
+            Some(SettingKey::ManageBackups) => self.open_backup_manager(),
             _ => self.save_settings(),
         }
     }
@@ -432,9 +486,32 @@ impl App {
             || crate::app::settings_types::SettingItem {
                 key: SettingKey::ShowHours,
                 label: "Show Costs in Hours".to_string(),
-                value: " No ▶".to_string(),
+                value: toggle_value(false),
                 setting_type: crate::app::settings_types::SettingType::Toggle,
                 help: "Toggle to display transaction amounts as hours worked.".to_string(),
+            },
+        );
+
+        let backups_on = self
+            .settings_state
+            .get_value(SettingKey::AutomaticBackups)
+            .map(|value| value.to_lowercase().contains("yes"))
+            .unwrap_or(false);
+        let keep = self.backup_keep;
+
+        self.ensure_setting_visibility(
+            SettingKey::BackupsToKeep,
+            backups_on,
+            SettingKey::AutomaticBackups,
+            || crate::app::settings_types::SettingItem {
+                key: SettingKey::BackupsToKeep,
+                label: "Automatic Backups to Keep".to_string(),
+                value: keep.to_string(),
+                setting_type: crate::app::settings_types::SettingType::Integer,
+                help: format!(
+                    "How many automatic snapshots to keep for this install's ID (1-{}). Other kinds stay until you delete them.",
+                    crate::db::backup::MAX_KEEP
+                ),
             },
         );
     }

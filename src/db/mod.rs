@@ -1,3 +1,4 @@
+pub mod backup;
 pub mod budget_store;
 pub mod category_store;
 pub mod database;

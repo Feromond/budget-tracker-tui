@@ -1,3 +1,4 @@
+pub mod backup;
 pub mod budget;
 pub mod category_manager;
 pub mod category_summary;
@@ -74,6 +75,9 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             | AppMode::LedgerManager
             | AppMode::LedgerEditor
             | AppMode::ConfirmLedgerDelete
+            | AppMode::BackupManager
+            | AppMode::ConfirmBackupRestore
+            | AppMode::ConfirmBackupDelete
             | AppMode::Investments
             | AppMode::InvestmentDetail
             | AppMode::InvestmentAccountEditor
@@ -175,6 +179,14 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
         AppMode::ConfirmLedgerDelete => {
             ledger_manager::render_ledger_manager(f, app, main_area);
             dialog::render_confirmation_dialog(f, &app.ledger_delete_prompt, main_area);
+        }
+        AppMode::BackupManager => {
+            backup::render_backup_manager(f, app, main_area);
+        }
+        AppMode::ConfirmBackupRestore | AppMode::ConfirmBackupDelete => {
+            backup::render_backup_manager(f, app, main_area);
+            let prompt = app.backup_confirm_prompt.clone();
+            dialog::render_confirmation_dialog(f, &prompt, main_area);
         }
         AppMode::Investments | AppMode::InvestmentDetail => {
             render_investment_background(f, app, main_area);

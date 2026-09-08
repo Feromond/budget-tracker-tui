@@ -372,6 +372,23 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
             Span::styled("Esc", Style::default().fg(Color::LightRed)),
             Span::raw(": Cancel"),
         ],
+        AppMode::BackupManager => vec![
+            Span::raw("↑↓ Nav | "),
+            Span::styled("Enter", Style::default().fg(Color::LightGreen)),
+            Span::raw(": Restore | "),
+            Span::styled("b", Style::default().fg(Color::LightBlue)),
+            Span::raw(": Back up now | "),
+            Span::styled("d", Style::default().fg(Color::LightRed)),
+            Span::raw(": Delete | "),
+            Span::styled("q/Esc", Style::default().fg(Color::LightCyan)),
+            Span::raw(": Back"),
+        ],
+        AppMode::ConfirmBackupRestore | AppMode::ConfirmBackupDelete => vec![
+            Span::styled("y", Style::default().fg(Color::LightGreen)),
+            Span::raw(": Confirm | "),
+            Span::styled("n/Esc", Style::default().fg(Color::LightRed)),
+            Span::raw(": Cancel"),
+        ],
         AppMode::ConfirmLedgerDelete => vec![
             Span::styled("y", Style::default().fg(Color::LightGreen)),
             Span::raw(": Confirm | "),

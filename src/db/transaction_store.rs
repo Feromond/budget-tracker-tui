@@ -318,6 +318,7 @@ fn parse_transaction_type(index: usize, value: &str) -> rusqlite::Result<Transac
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::backup::{self, BackupKind};
     use crate::db::category_store::CategoryStore;
     use crate::db::database::SCHEMA_VERSION;
     use crate::db::investment_store::{InvestmentStore, SqliteInvestmentStore};
@@ -372,6 +373,7 @@ mod tests {
             let _ = std::fs::remove_file(&self.path);
             let _ = std::fs::remove_file(self.path.with_extension("db-wal"));
             let _ = std::fs::remove_file(self.path.with_extension("db-shm"));
+            let _ = std::fs::remove_dir_all(crate::db::backup::backups_dir(&self.path));
         }
     }
 
@@ -387,6 +389,61 @@ mod tests {
             recurrence_frequency: None,
             recurrence_end_date: None,
         }
+    }
+
+    #[test]
+    fn backup_round_trips_through_restore() {
+        let temp = TempDb::new();
+        let store = temp.store();
+        store
+            .insert(&draft("2026-01-05", "Rent", "1200.00", "Housing"))
+            .unwrap();
+
+        let snapshot = backup::create(&temp.path, "device-a", BackupKind::Manual).unwrap();
+        assert!(snapshot.path.exists());
+
+        store
+            .insert(&draft("2026-02-05", "Oops", "9999.00", "Housing"))
+            .unwrap();
+        assert_eq!(store.list().unwrap().len(), 2);
+
+        let safety = backup::restore(&temp.path, &snapshot.path, "device-a").unwrap();
+        let restored = store.list().unwrap();
+        assert_eq!(restored.len(), 1);
+        assert_eq!(restored[0].description, "Rent");
+
+        let safety = safety.expect("restoring over a real database keeps a safety copy");
+        backup::restore(&temp.path, &safety, "device-a").unwrap();
+        assert_eq!(store.list().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn pruning_only_touches_this_devices_automatic_backups() {
+        let temp = TempDb::new();
+        temp.store()
+            .insert(&draft("2026-01-05", "Rent", "1200.00", "Housing"))
+            .unwrap();
+
+        for _ in 0..3 {
+            backup::create(&temp.path, "device-a", BackupKind::Auto).unwrap();
+        }
+        backup::create(&temp.path, "device-a", BackupKind::Manual).unwrap();
+        backup::create(&temp.path, "device-b", BackupKind::Auto).unwrap();
+
+        assert_eq!(backup::prune(&temp.path, "device-a", 1).unwrap(), 2);
+
+        let remaining = backup::list(&temp.path, "device-a").unwrap();
+        assert_eq!(remaining.len(), 3);
+        let other = remaining
+            .iter()
+            .find(|entry| !entry.is_this_device)
+            .expect("the other device's backup is kept");
+        assert_eq!(other.instance, "device-b");
+        assert!(
+            remaining
+                .iter()
+                .any(|entry| entry.kind == BackupKind::Manual)
+        );
     }
 
     #[test]

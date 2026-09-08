@@ -26,6 +26,7 @@ The companion to the [README](../README.md), with the longer explanations that d
 - [Ledgers](#ledgers)
 - [Import and export](#import-and-export)
 - [Settings](#settings)
+- [Backups](#backups)
 - [Data storage and backups](#data-storage-and-backups)
 - [CSV format](#csv-format)
 
@@ -392,7 +393,7 @@ The export contains all transactions in the open ledger, regardless of the activ
 
 Press `o` to open settings. Use `Tab` or `↑`/`↓` to move between settings and type into number or path fields. For toggles, `←` sets No and `→` sets Yes.
 
-Press `Enter` on a regular setting to save all preferences and return to the main view. On Ledger, Manage Categories, Import, or Export, it opens that action instead. `Esc` discards unsaved preference changes. Saving settings clears transaction filters.
+Press `Enter` on a regular setting to save all preferences and return to the main view. On Ledger, Manage Categories, Import, Export, or Manage Backups, it opens that action instead. `Esc` discards unsaved preference changes. Saving settings clears transaction filters.
 
 The menu is grouped into sections:
 
@@ -403,6 +404,12 @@ The menu is grouped into sections:
 - *Manage Categories*: opens the [category catalog](#the-category-catalog).
 - *Import Transactions (CSV)*: adds transactions to the open ledger, skipping rows with matching core fields. See [Import transactions](#import-transactions).
 - *Export Transactions (CSV)*: writes the open ledger's transactions to a CSV file for transfer or use elsewhere; see [Import and export](#import-and-export).
+
+**Backups**
+
+- *Automatic Backups*: takes daily and pre-upgrade snapshots at startup. On by default; turning it off disables both. See [Backups](#backups).
+- *Automatic Backups to Keep*: how many automatic snapshots to keep for this install's ID (1-50, default 5). Only shown while automatic backups are on.
+- *Manage Backups*: opens the backup list to take, restore, or delete a snapshot.
 
 **Transaction View**
 
@@ -420,6 +427,49 @@ The menu is grouped into sections:
 
 - *Hide Help Bar*: hides the bottom help bar if you want the extra screen space (`Ctrl+H` still works).
 
+## Backups
+
+Snapshots are backup copies of your database. The app uses SQLite to keep each copy consistent, and you can restore one to go back to earlier data.
+
+There are four kinds:
+
+- **Automatic**: at startup if this install's ID has no automatic snapshot for today (local time).
+- **Before upgrade**: at startup if the database needs a schema upgrade, instead of the daily snapshot.
+- **Manual**: when you press `b` in the backup list.
+- **Before restore**: a copy of the current database before it is replaced, so you can undo a restore. If this copy fails, the restore stops.
+
+*Automatic Backups* must be on for daily and pre-upgrade snapshots. Both require an existing, nonempty database. Manual and pre-restore snapshots work with the toggle off.
+
+After a successful startup snapshot, the app tries to remove automatic snapshots beyond the retention limit. Manual, pre-upgrade, and pre-restore snapshots stay until you delete them.
+
+### Where backups live
+
+Beside the database, in `backups/<database filename without extension>/`. If your database is `~/Documents/Budget/money.db`, the snapshots are in `~/Documents/Budget/backups/money/`. Files in the same folder with the same name but different extensions share a backup directory.
+
+If the database is in a synced folder, its backups sync too. These snapshots don't replace a separate off-machine backup.
+
+The app generates a short ID and saves it in `config.json`. Snapshot filenames include this ID, and automatic cleanup only removes automatic snapshots with the current ID. Snapshots with other IDs are listed and can be restored or deleted manually.
+
+Copying `config.json` to another machine also copies the ID, so cleanup on either machine can remove automatic snapshots from both.
+
+### Manage backups
+
+Open Settings, select *Manage Backups*, and press `Enter`. The list shows snapshots newest first, with the time, kind, size, and schema version. The Device column shows “This device” for the current install ID or “Other” with the snapshot's ID.
+
+| Key | Action |
+| --- | --- |
+| `↑`/`↓` | Move through the list |
+| `Enter` | Restore the selected snapshot (asks to confirm) |
+| `b` | Take a snapshot now |
+| `d` | Delete the selected snapshot (asks to confirm) |
+| `q`/`Esc` | Back to Settings |
+
+Restoring replaces the current database with the snapshot and reloads everything. Filters are cleared, and the ledger reopens from the restored file. A snapshot holding an older schema is upgraded as usual after being restored.
+
+The app checks the snapshot before restoring it. If it fails the integrity check or uses a newer schema than the app supports, the restore stops without replacing your database.
+
+If a startup backup fails, the app shows an error and continues opening the database, including any pending schema upgrade.
+
 ## Data storage and backups
 
 Transactions, categories, and investments are stored together in a local SQLite database (`budget.db`). On first run with a new database, it's seeded with the default category catalog and a ledger named `Main`. Default locations:
@@ -432,7 +482,7 @@ Check *Database Path* in Settings for the actual location. Older configurations 
 
 When you save a new path, the app copies the current database there if the destination doesn't exist. If it already exists, the app switches to that database without merging them. The original file stays in place.
 
-> **Using a cloud-synced folder:** This can carry the database between devices, but the app doesn't handle sync conflicts or simultaneous use. Close the app before switching devices, wait for syncing to finish, and keep separate backups.
+> **Using a cloud-synced folder:** This can carry the database between devices, but the app doesn't handle sync conflicts or simultaneous use. Close the app before switching devices, wait for syncing to finish, and keep separate backups. The app's [snapshots](#backups) sync with the database too.
 
 App preferences live separately in a `config.json` in your OS config directory:
 
@@ -444,7 +494,7 @@ Changes are written to the database immediately as you add, edit, or delete, so 
 
 ### Back up your data
 
-Note the database filename and location shown in Settings, close the app, then copy that file to wherever you keep your backups. Copy `config.json` too if you want to keep your app preferences. You'll need the database file for a full backup, not just a [CSV export](#export-transactions).
+Automatic snapshots are on by default; see [Backups](#backups) for details and restore steps. For a separate off-machine backup: note the database filename and location shown in Settings, close the app, then copy that file to wherever you keep your backups. Copy `config.json` too if you want to keep your app preferences. You'll need the database file for a full backup, not just a [CSV export](#export-transactions).
 
 ### Migrating from older versions
 
@@ -456,7 +506,9 @@ to the filename. If the rename fails, the original keeps its name. If the file w
 during that first check, use manual CSV import later.
 
 The database also has a schema version. Pending schema upgrades run in one database transaction,
-so a failed schema upgrade rolls back its changes. The current app refuses database access and
+so a failed schema upgrade rolls back its changes. At startup, with *Automatic Backups* on, the app
+tries to take a [snapshot](#backups) before upgrading an existing database; a backup failure doesn't
+stop the upgrade. The current app refuses database access and
 shows an update-required error if the schema is newer than it supports. Keep app versions aligned
 when sharing a database between devices.
 

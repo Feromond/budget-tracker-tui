@@ -7,8 +7,8 @@ use std::result::Result as StdResult;
 use std::time::Duration;
 
 use super::{
-    add_edit_mode, budget_mode, category_manager_mode, filter_mode, fuzzy_search_mode, help_mode,
-    investments_mode, ledger_manager_mode, normal_mode, recurring_mode, selection_mode,
+    add_edit_mode, backup_mode, budget_mode, category_manager_mode, filter_mode, fuzzy_search_mode,
+    help_mode, investments_mode, ledger_manager_mode, normal_mode, recurring_mode, selection_mode,
     settings_mode, summary_mode, transaction_io_mode,
 };
 
@@ -192,6 +192,9 @@ fn update(app: &mut App, key_event: KeyEvent) {
         }
         AppMode::LedgerManager | AppMode::LedgerEditor | AppMode::ConfirmLedgerDelete => {
             ledger_manager_mode::handle_ledger_manager_mode(app, key_event)
+        }
+        AppMode::BackupManager | AppMode::ConfirmBackupRestore | AppMode::ConfirmBackupDelete => {
+            backup_mode::handle_backup_mode(app, key_event)
         }
         AppMode::Investments
         | AppMode::InvestmentDetail

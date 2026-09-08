@@ -17,6 +17,10 @@ pub(crate) struct AppSettings {
     pub(crate) fuzzy_search_mode: Option<bool>,
     pub(crate) hide_help_bar: Option<bool>,
     pub(crate) recurring_forecast_months: Option<u32>,
+    pub(crate) backups_enabled: Option<bool>,
+    pub(crate) backup_keep: Option<u32>,
+    /// Identifies this install in backup filenames.
+    pub(crate) instance_id: Option<String>,
 }
 
 fn get_config_file_path() -> Result<PathBuf, Error> {

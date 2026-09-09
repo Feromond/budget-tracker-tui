@@ -48,7 +48,7 @@ brew install budget-tracker
   <img width="1000" height="612" alt="summary_cum_multi" src="https://github.com/user-attachments/assets/97633bb7-fc4c-4c20-822f-2f7feb1e0065" />
   <br><i>Cumulative multi-month chart</i><br><br>
   <img width="1000" height="614" alt="investments" src="https://github.com/user-attachments/assets/290795dc-8c57-47e5-b1b9-1d52269b8990" />
-  <br><i>Investments/i><br><br>
+  <br><i>Investments</i><br><br>
   <img width="1000" height="612" alt="help_menu" src="https://github.com/user-attachments/assets/7b994e22-1fc2-435d-9a07-e6c5373f51b4" />
   <br><i>Settings with help menu open</i><br><br>
   <img width="1000" height="612" alt="fuzzy_find" src="https://github.com/user-attachments/assets/9c6217f3-dbf5-47a9-8e86-b61c35449ba5" />
@@ -61,12 +61,12 @@ brew install budget-tracker
 ## Features
 
 - Add, edit, delete, filter, and sort income and expense transactions
-- Recurring transactions, from daily to yearly, generated automatically up to today or a forecast horizon you set
+- Recurring transactions from daily to yearly, with optional forecasting
 - Hierarchical categories and subcategories, editable in-app, with optional fuzzy search
 - Monthly and category summaries with interactive charts
-- A monthly budget plus optional per-category budgets, tracked in a dedicated budget view and dated so changing one never rewrites past months
-- Manual investment tracking, recording valuations and contributions separately so growth is always derived rather than guessed
-- Multiple ledgers per database, for separate accounts or for forecasting apart from your real data
+- Monthly and per-category budgets without changing past months
+- Manual investment tracking for valuations, contributions, and growth
+- Multiple ledgers for separate accounts or forecasts
 - CSV import/export (duplicates skipped on import)
 - Local SQLite storage with decimal arithmetic (no floating-point rounding errors)
 - Fully keyboard-driven, with a built-in help menu
@@ -82,7 +82,7 @@ With Rust installed ([rustup.rs](https://rustup.rs)):
 cargo install budget-tracker-tui
 ```
 
-This puts the `budget-tracker` command on your PATH. If you previously installed the old `budget_tracker_tui` crate, run `cargo uninstall budget_tracker_tui` first, since cargo leaves the old `Budget_Tracker` binary behind on its own.
+This puts the `budget-tracker` command on your PATH. If you installed the old `budget_tracker_tui` crate, uninstall it first with `cargo uninstall budget_tracker_tui`.
 
 ### Homebrew (macOS & Linux)
 

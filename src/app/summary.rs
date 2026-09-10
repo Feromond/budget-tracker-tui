@@ -434,12 +434,11 @@ impl App {
                 (*month, category.clone(), subcategory.clone())
             }
             Some(CategorySummaryItem::Transaction(month, index)) => {
-                let tx = &self.transactions[*index];
-                (
-                    *month,
-                    tx.category.trim().to_string(),
-                    tx.subcategory.trim().to_string(),
-                )
+                let Some(tx) = self.transactions.get(*index) else {
+                    return;
+                };
+                let (category, subcategory) = category_summary_keys(tx);
+                (*month, category.to_string(), subcategory.to_string())
             }
             None => return,
         };

@@ -227,13 +227,33 @@ impl App {
             self.category_summary_table_state.select(None);
             return;
         }
-        let position = month.and_then(|month| {
+        let position = self.target_category_summary_month(month).and_then(|month| {
             self.cached_visible_category_items
                 .iter()
                 .position(|item| matches!(item, CategorySummaryItem::Month(m, _) if *m == month))
         });
         self.category_summary_table_state
             .select(Some(position.unwrap_or(0)));
+    }
+
+    /// Same fallback the monthly summary uses: keep the month, else this year's current
+    /// month, else its latest.
+    fn target_category_summary_month(&self, month: Option<u32>) -> Option<u32> {
+        let year = self
+            .category_summary_years
+            .get(self.category_summary_year_index)
+            .copied()?;
+        let months = self.sorted_category_months_for_year(year);
+        if let Some(month) = month
+            && months.contains(&month)
+        {
+            return Some(month);
+        }
+        let now = chrono::Local::now();
+        if year == now.year() && months.contains(&now.month()) {
+            return Some(now.month());
+        }
+        months.last().copied()
     }
 
     pub(crate) fn next_category_summary_year(&mut self) {

@@ -26,34 +26,35 @@ brew install budget-tracker
 ## Screenshots
 
 <p align="center">
-  <img width="1000" height="612" alt="main_view" src="https://github.com/user-attachments/assets/6aa9fa96-2918-4a0c-a7b2-b2b19d5eb27c" />
+  <img width="1000" height="614" alt="main-transaction-view" src="https://github.com/user-attachments/assets/96b58c49-10ff-4f7e-bdd7-b7c927aa9ba8" />
   <br><i>Main transaction view</i><br><br>
 
-  <img width="1000" height="612" alt="cat_summary" src="https://github.com/user-attachments/assets/1b7f6741-8a05-4374-a66f-9fd099ffc9e9" />
+  <img width="1000" height="614" alt="category-summary-view" src="https://github.com/user-attachments/assets/bbb050b2-38d8-4936-8363-2b27b015bafc" />
   <br><i>Category summary</i><br><br>
 
-  <img width="1000" height="612" alt="summary_view" src="https://github.com/user-attachments/assets/016d6227-3e3d-4a7f-ad3c-efdcba7dd068" />
-  <br><i>Monthly summary with budget line</i><br><br>
-
-  <img width="1009" height="593" alt="budget_view" src="https://github.com/user-attachments/assets/c5b25f94-8364-4f11-ba40-383a4e9bb850" />
+  <img width="1000" height="614" alt="budget-view" src="https://github.com/user-attachments/assets/89de97b1-03aa-465b-9e90-815c2361c524" />
   <br><i>Budget view</i><br><br>
+
+  <img width="1000" height="614" alt="monthly-summary-view" src="https://github.com/user-attachments/assets/c8b8901d-07bb-46b1-a8ce-b1c8d92daba7" />
+  <br><i>Monthly summary</i><br><br>
 </p>
 
 <details><summary>More screenshots</summary>
 <p align="center">
-  <img width="1000" height="612" alt="summary_multi" src="https://github.com/user-attachments/assets/07011663-c1b7-45c5-b972-fb6c68bf432c" />
+
+  <img width="1000" height="614" alt="multi-month-summary" src="https://github.com/user-attachments/assets/cf4ff51c-03f7-426c-afdf-ad61a60e9779" />
   <br><i>Multi-month line chart</i><br><br>
-  <img width="1000" height="612" alt="summary_cumu" src="https://github.com/user-attachments/assets/5d99b5a9-2869-4a0a-aa63-a41cfb4a8787" />
+  <img width="1000" height="614" alt="cumulative-with-budget-line" src="https://github.com/user-attachments/assets/10ad584f-cd39-4e49-abea-63a4f358b3ff" />
   <br><i>Cumulative chart with budget line</i><br><br>
-  <img width="1000" height="612" alt="summary_cum_multi" src="https://github.com/user-attachments/assets/97633bb7-fc4c-4c20-822f-2f7feb1e0065" />
+  <img width="1000" height="614" alt="cumulative-multi-summary" src="https://github.com/user-attachments/assets/acee89ae-22a7-4841-910b-03836f305175" />
   <br><i>Cumulative multi-month chart</i><br><br>
-  <img width="1000" height="614" alt="investments" src="https://github.com/user-attachments/assets/290795dc-8c57-47e5-b1b9-1d52269b8990" />
+  <img width="1000" height="614" alt="investment-account-view" src="https://github.com/user-attachments/assets/e0e20782-97e6-492a-8ab8-e7ceab191f60" />
   <br><i>Investments</i><br><br>
-  <img width="1000" height="612" alt="help_menu" src="https://github.com/user-attachments/assets/7b994e22-1fc2-435d-9a07-e6c5373f51b4" />
+  <img width="1000" height="614" alt="settings-with-help-menu-open" src="https://github.com/user-attachments/assets/c318d858-2de4-4d4c-b7c8-9d0e0da3c5d0" />
   <br><i>Settings with help menu open</i><br><br>
-  <img width="1000" height="612" alt="fuzzy_find" src="https://github.com/user-attachments/assets/9c6217f3-dbf5-47a9-8e86-b61c35449ba5" />
+  <img width="1000" height="614" alt="fuzzy-search-categories" src="https://github.com/user-attachments/assets/ab985691-ca2f-4a07-bbc1-4c9ec3393b39" />
   <br><i>Fuzzy search for categories</i><br><br>
-  <img width="1009" height="593" alt="category_catalog" src="https://github.com/user-attachments/assets/0f9430a9-50dc-4fec-ab2f-59ba21c331ca" />
+  <img width="1000" height="614" alt="category-catalog-with-budget-target" src="https://github.com/user-attachments/assets/d573a59f-0e53-4d1e-b67c-aa7baed59d77" />
   <br><i>Category catalog</i><br><br>
 </p>
 </details>

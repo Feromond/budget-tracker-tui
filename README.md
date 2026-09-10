@@ -17,14 +17,15 @@
 
 A terminal app for tracking your personal budget, built with [Rust](https://www.rust-lang.org) and [Ratatui](https://ratatui.rs).
 
+<p align="center">
+  <img width="2000" height="1226" alt="Budget Tracker tour" src="https://github.com/user-attachments/assets/10387ade-007f-4ba0-b62b-a261a6acf46a" />
+</p>
+
 ```bash
 cargo install budget-tracker-tui
 # or
 brew install budget-tracker
 ```
-
-<img width="2000" height="1226" alt="budget-tracker-tour-gif" src="https://github.com/user-attachments/assets/10387ade-007f-4ba0-b62b-a261a6acf46a" />
-
 
 ## Screenshots
 
@@ -32,19 +33,16 @@ brew install budget-tracker
   <img width="1000" height="614" alt="main-transaction-view" src="https://github.com/user-attachments/assets/96b58c49-10ff-4f7e-bdd7-b7c927aa9ba8" />
   <br><i>Main transaction view</i><br><br>
 
-  <img width="1000" height="614" alt="category-summary-view" src="https://github.com/user-attachments/assets/bbb050b2-38d8-4936-8363-2b27b015bafc" />
-  <br><i>Category summary</i><br><br>
-
   <img width="1000" height="614" alt="budget-view" src="https://github.com/user-attachments/assets/89de97b1-03aa-465b-9e90-815c2361c524" />
   <br><i>Budget view</i><br><br>
-
-  <img width="1000" height="614" alt="monthly-summary-view" src="https://github.com/user-attachments/assets/c8b8901d-07bb-46b1-a8ce-b1c8d92daba7" />
-  <br><i>Monthly summary</i><br><br>
 </p>
 
 <details><summary>More screenshots</summary>
 <p align="center">
-
+  <img width="1000" height="614" alt="category-summary-view" src="https://github.com/user-attachments/assets/bbb050b2-38d8-4936-8363-2b27b015bafc" />
+  <br><i>Category summary</i><br><br>
+  <img width="1000" height="614" alt="monthly-summary-view" src="https://github.com/user-attachments/assets/c8b8901d-07bb-46b1-a8ce-b1c8d92daba7" />
+  <br><i>Monthly summary</i><br><br>
   <img width="1000" height="614" alt="multi-month-summary" src="https://github.com/user-attachments/assets/cf4ff51c-03f7-426c-afdf-ad61a60e9779" />
   <br><i>Multi-month line chart</i><br><br>
   <img width="1000" height="614" alt="cumulative-with-budget-line" src="https://github.com/user-attachments/assets/10ad584f-cd39-4e49-abea-63a4f358b3ff" />

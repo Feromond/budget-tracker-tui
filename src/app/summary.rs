@@ -1,6 +1,7 @@
 use super::state::App;
 use crate::app::fields::AdvancedFilterField;
-use crate::app::state::{AppMode, CategorySummaryItem, category_summary_keys};
+use crate::app::state::{AppMode, CategorySummaryItem};
+use crate::app::util::category_summary_keys;
 use crate::model::{DATE_FORMAT, MonthlySummary};
 use crate::ui::helpers::month_to_short_str;
 use chrono;

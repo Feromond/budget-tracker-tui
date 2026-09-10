@@ -84,16 +84,6 @@ pub enum CategorySummaryItem {
     Transaction(u32, usize),
 }
 
-pub(crate) fn category_summary_keys(tx: &Transaction) -> (&str, &str) {
-    let category = tx.category.trim();
-    let category = if category.is_empty() {
-        "Uncategorized"
-    } else {
-        category
-    };
-    (category, tx.subcategory.trim())
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BudgetEditTarget {
     MonthlyBudget,
@@ -1091,7 +1081,7 @@ impl App {
             let year = tx.date.year();
             let month = tx.date.month();
             years.insert(year);
-            let (final_category, subcategory_key) = category_summary_keys(tx);
+            let (final_category, subcategory_key) = crate::app::util::category_summary_keys(tx);
             let month_map = self.category_summaries.entry((year, month)).or_default();
             let summary = month_map
                 .entry((final_category.to_string(), subcategory_key.to_string()))

@@ -8,23 +8,6 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 use std::collections::HashMap;
 
-// Dim these amounts because they are already included in the total above.
-fn cell_detail_amount(amount: Decimal, income: bool) -> Cell<'static> {
-    let color = if income {
-        Color::LightGreen
-    } else {
-        Color::LightRed
-    };
-    Cell::from(Line::from(format_amount(&amount)).alignment(Alignment::Right))
-        .style(Style::default().fg(color).add_modifier(Modifier::DIM))
-}
-
-fn next_sibling(items: &[CategorySummaryItem], from: usize) -> Option<&CategorySummaryItem> {
-    items[from + 1..]
-        .iter()
-        .find(|item| !matches!(item, CategorySummaryItem::Transaction(_, _)))
-}
-
 fn cell_income(amount: Decimal, bold: bool) -> Cell<'static> {
     if amount.round_dp(2).is_zero() {
         return Cell::from("");
@@ -60,6 +43,23 @@ fn cell_net(net: Decimal, bold: bool) -> Cell<'static> {
         style = style.add_modifier(Modifier::BOLD);
     }
     Cell::from(Line::from(s).alignment(Alignment::Right)).style(style)
+}
+
+// Dim these amounts because they are already included in the total above.
+fn cell_detail_amount(amount: Decimal, income: bool) -> Cell<'static> {
+    let color = if income {
+        Color::LightGreen
+    } else {
+        Color::LightRed
+    };
+    Cell::from(Line::from(format_amount(&amount)).alignment(Alignment::Right))
+        .style(Style::default().fg(color).add_modifier(Modifier::DIM))
+}
+
+fn next_sibling(items: &[CategorySummaryItem], from: usize) -> Option<&CategorySummaryItem> {
+    items[from + 1..]
+        .iter()
+        .find(|item| !matches!(item, CategorySummaryItem::Transaction(_, _)))
 }
 
 pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {

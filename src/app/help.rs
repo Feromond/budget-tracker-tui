@@ -335,7 +335,22 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("↑/↓", "Select Category/Subcategory", "Navigation", None),
             KeyBindingInfo::new("←/→ / [/]", "Change Year", "Navigation", None),
             KeyBindingInfo::new("PgUp/PgDn", "Jump Selected Month", "Navigation", None),
-            KeyBindingInfo::new("Enter", "Expand/Collapse Category", "Actions", None),
+            KeyBindingInfo::new(
+                "Enter",
+                "Drill Down One Level",
+                "Actions",
+                Some(
+                    "Expand or collapse a month or subcategory. Transactions appear oldest first. Press Enter on a transaction to open it in the main list with your filters unchanged.",
+                ),
+            ),
+            KeyBindingInfo::new(
+                "f",
+                "Filter Transaction List",
+                "Actions",
+                Some(
+                    "Open the main transaction list with new filters based on this row. Month rows filter by month; other rows also use category and subcategory. Names match partial text, ignoring case. Blank subcategories and Uncategorized categories leave those fields unrestricted. Summaries use these filters too. Press q in the main list to clear them.",
+                ),
+            ),
             KeyBindingInfo::new("q/Esc", "Back to Transactions", "Actions", None),
             KeyBindingInfo::new("Ctrl+H", "Show Keybindings Help", "System", None),
         ],

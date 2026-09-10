@@ -1,5 +1,5 @@
 use crate::app::state::{App, CategorySummaryItem};
-use crate::model::MonthlySummary;
+use crate::model::{MonthlySummary, TransactionType};
 use crate::ui::helpers::{format_amount, month_to_short_str};
 use ratatui::prelude::*;
 use ratatui::text::Line;
@@ -7,6 +7,23 @@ use ratatui::widgets::*;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 use std::collections::HashMap;
+
+// Dim these amounts because they are already included in the total above.
+fn cell_detail_amount(amount: Decimal, income: bool) -> Cell<'static> {
+    let color = if income {
+        Color::LightGreen
+    } else {
+        Color::LightRed
+    };
+    Cell::from(Line::from(format_amount(&amount)).alignment(Alignment::Right))
+        .style(Style::default().fg(color).add_modifier(Modifier::DIM))
+}
+
+fn next_sibling(items: &[CategorySummaryItem], from: usize) -> Option<&CategorySummaryItem> {
+    items[from + 1..]
+        .iter()
+        .find(|item| !matches!(item, CategorySummaryItem::Transaction(_, _)))
+}
 
 fn cell_income(amount: Decimal, bold: bool) -> Cell<'static> {
     if amount.round_dp(2).is_zero() {
@@ -117,7 +134,10 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
 
     let (total_income, total_expense) = crate::app::util::calculate_totals(app, current_year);
 
+    let selected_row = app.category_summary_table_state.selected();
+    let today = chrono::Local::now().date_naive();
     let mut last_expanded_month: Option<u32> = None;
+    let mut parent_subcategory_is_last = true;
     let rows: Vec<Row> = items
         .iter()
         .enumerate()
@@ -156,23 +176,22 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
                 .style(Style::default().bg(Color::Rgb(20, 20, 20))) // Dark gray background on month rows
             }
             CategorySummaryItem::Subcategory(month, category, sub, summary) => {
+                let child_count = items[i + 1..]
+                    .iter()
+                    .take_while(|item| matches!(item, CategorySummaryItem::Transaction(_, _)))
+                    .count();
+                let is_last_child = match next_sibling(items, i) {
+                    Some(CategorySummaryItem::Subcategory(next_m, _, _, _)) => *next_m != *month,
+                    _ => true,
+                };
+                parent_subcategory_is_last = is_last_child;
+
                 let mut first_cell = Cell::from("");
                 if let Some(expanded_month) = last_expanded_month
                     && expanded_month == *month
                 {
                     let month_idx = months.iter().position(|&m| m == *month).unwrap_or(0);
                     let arrow_color = color_palette[month_idx % color_palette.len()];
-
-                    // Determine tree branch symbol
-                    let is_last_child = if let Some(next_item) = items.get(i + 1) {
-                        match next_item {
-                            CategorySummaryItem::Month(_, _) => true,
-                            CategorySummaryItem::Subcategory(next_m, _, _, _) => *next_m != *month,
-                        }
-                    } else {
-                        true
-                    };
-
                     let tree_symbol = if is_last_child { "└─" } else { "├─" };
 
                     first_cell = Cell::from(Line::from(vec![
@@ -180,19 +199,94 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
                         Span::raw(" "),
                     ]));
                 }
+                let hint = if child_count > 0 {
+                    format!(" ▾ ({})", child_count)
+                } else if selected_row == Some(i) {
+                    " ▸".to_string()
+                } else {
+                    String::new()
+                };
+                let display_sub = if sub.is_empty() { "Uncategorized" } else { sub };
                 let inc_cell = cell_income(summary.income, false);
                 let exp_cell = cell_expense(summary.expense, false);
                 let net_cell = cell_net(summary.income - summary.expense, false);
                 Row::new(vec![
                     first_cell,
                     Cell::from(category.clone()),
-                    Cell::from(sub.clone()),
+                    Cell::from(format!("{}{}", display_sub, hint)),
                     inc_cell,
                     exp_cell,
                     net_cell,
                 ])
                 .height(1)
                 .bottom_margin(0)
+            }
+            CategorySummaryItem::Transaction(month, index) => {
+                let Some(tx) = app.transactions.get(*index) else {
+                    return Row::new(vec![Cell::from("Error: Invalid Index").fg(Color::Red)])
+                        .height(1)
+                        .bottom_margin(0);
+                };
+                let month_idx = months.iter().position(|&m| m == *month).unwrap_or(0);
+                let arrow_color = color_palette[month_idx % color_palette.len()];
+                let month_guide = if parent_subcategory_is_last {
+                    "  "
+                } else {
+                    "│ "
+                };
+                let is_last_transaction = !matches!(
+                    items.get(i + 1),
+                    Some(CategorySummaryItem::Transaction(_, _))
+                );
+                let branch = if is_last_transaction {
+                    "└─ "
+                } else {
+                    "├─ "
+                };
+
+                let description = if tx.is_recurring {
+                    if tx.is_generated_from_recurring {
+                        format!("⟲ {}", tx.description)
+                    } else {
+                        format!("⟲* {}", tx.description)
+                    }
+                } else {
+                    tx.description.clone()
+                };
+
+                let (inc_cell, exp_cell) = match tx.transaction_type {
+                    TransactionType::Income => {
+                        (cell_detail_amount(tx.amount, true), Cell::from(""))
+                    }
+                    TransactionType::Expense => {
+                        (Cell::from(""), cell_detail_amount(tx.amount, false))
+                    }
+                };
+
+                let row = Row::new(vec![
+                    Cell::from(Span::styled(month_guide, Style::default().fg(arrow_color))),
+                    Cell::from(Line::from(vec![
+                        Span::styled(
+                            format!("  {}", branch),
+                            Style::default().fg(arrow_color).add_modifier(Modifier::DIM),
+                        ),
+                        Span::styled(
+                            tx.date.format("%b %d (%a)").to_string(),
+                            Style::default().fg(Color::Gray),
+                        ),
+                    ])),
+                    Cell::from(description),
+                    inc_cell,
+                    exp_cell,
+                    Cell::from(""),
+                ])
+                .height(1)
+                .bottom_margin(0);
+                if tx.is_generated_from_recurring && tx.date > today {
+                    row.style(Style::default().add_modifier(Modifier::DIM))
+                } else {
+                    row
+                }
             }
         })
         .collect();
@@ -304,6 +398,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
         let selected_month = match item {
             CategorySummaryItem::Month(m, _) => *m,
             CategorySummaryItem::Subcategory(m, _, _, _) => *m,
+            CategorySummaryItem::Transaction(m, _) => *m,
         };
         let mut category_totals: HashMap<String, MonthlySummary> = HashMap::new();
         if let Some(month_map) = app.category_summaries.get(&(year, selected_month)) {

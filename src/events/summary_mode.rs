@@ -1,4 +1,4 @@
-use crate::app::state::{App, AppMode, CategorySummaryItem};
+use crate::app::state::{App, AppMode};
 use crossterm::event::{KeyCode, KeyEvent};
 
 pub fn handle_summary_mode(app: &mut App, key_event: KeyEvent) {
@@ -33,31 +33,8 @@ fn handle_category_summary(app: &mut App, key_event: KeyEvent) {
         // Brackets and Left/Right for year navigation
         KeyCode::Char(']') | KeyCode::Right => app.next_category_summary_year(),
         KeyCode::Char('[') | KeyCode::Left => app.previous_category_summary_year(),
-        KeyCode::Enter => {
-            let items = app.get_visible_category_summary_items();
-            if let Some(selected_index) = app.category_summary_table_state.selected()
-                && let Some(item) = items.get(selected_index)
-            {
-                if let CategorySummaryItem::Month(month, _) = item {
-                    if app.expanded_category_summary_months.contains(month) {
-                        app.expanded_category_summary_months.remove(month);
-                    } else {
-                        app.expanded_category_summary_months.insert(*month);
-                    }
-                    app.cached_visible_category_items = app.get_visible_category_summary_items();
-                }
-                // Clamp selection to valid range using cached list
-                let len = app.cached_visible_category_items.len();
-                if len == 0 {
-                    app.category_summary_table_state.select(None);
-                } else if selected_index >= len {
-                    app.category_summary_table_state.select(Some(len - 1));
-                } else {
-                    app.category_summary_table_state
-                        .select(Some(selected_index));
-                }
-            }
-        }
+        KeyCode::Enter => app.toggle_category_summary_row(),
+        KeyCode::Char('f') => app.filter_transactions_from_category_summary(),
         _ => {}
     }
 }

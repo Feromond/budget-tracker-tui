@@ -78,7 +78,10 @@ pub enum InvestmentDeleteTarget {
 #[derive(Debug)]
 pub enum CategorySummaryItem {
     Month(u32, MonthlySummary),
+    /// Keep the category keys for matching transactions.
     Subcategory(u32, String, String, MonthlySummary),
+    /// Month and index into `transactions`.
+    Transaction(u32, usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -149,6 +152,7 @@ pub struct App {
     pub(crate) category_summary_year_index: usize,
     // Expansion state for hierarchical category summary
     pub(crate) expanded_category_summary_months: HashSet<u32>,
+    pub(crate) expanded_category_summary_subcategories: HashSet<(u32, String, String)>,
     // Flattened list of visible items for rendering and navigation
     pub(crate) cached_visible_category_items: Vec<CategorySummaryItem>,
     // Budget view state
@@ -414,6 +418,7 @@ impl App {
             category_summary_year_index: 0,
             category_summary_table_state: TableState::default(),
             expanded_category_summary_months: HashSet::new(),
+            expanded_category_summary_subcategories: HashSet::new(),
             cached_visible_category_items: Vec::new(),
             budget_years: Vec::new(),
             budget_year_index: 0,
@@ -1076,13 +1081,7 @@ impl App {
             let year = tx.date.year();
             let month = tx.date.month();
             years.insert(year);
-            let category_key = tx.category.trim();
-            let subcategory_key = tx.subcategory.trim();
-            let final_category = if category_key.is_empty() {
-                "Uncategorized"
-            } else {
-                category_key
-            };
+            let (final_category, subcategory_key) = crate::app::util::category_summary_keys(tx);
             let month_map = self.category_summaries.entry((year, month)).or_default();
             let summary = month_map
                 .entry((final_category.to_string(), subcategory_key.to_string()))

@@ -128,6 +128,10 @@ The monthly summary shows a daily spending chart and monthly net-balance bars. T
 
 The category summary shows income, expenses, and net by month, with category/subcategory rows underneath. `↑`/`↓` select rows; `Enter` on a month heading expands or collapses it. `PageUp`/`PageDown` jump between months, and `←`/`→` or `[`/`]` change years.
 
+`Enter` on a subcategory shows its transactions oldest first, with a count beside the name. Amounts are dimmed because they are already included in the total above. Press `Enter` again to collapse it, or on a transaction to open it in the main list with your filters unchanged.
+
+`f` opens the main list with new filters based on the selected row. Month rows filter by month; other rows also use the category and subcategory. Names match partial text, ignoring case. A blank subcategory or an `Uncategorized` category leaves that field unrestricted, so the list can include more than the selected group. These filters also apply to summaries. Press `q` in the main list to clear them.
+
 Both summary views use the filtered transactions. Press `q` or `Esc` to return to the main view.
 
 To see how your spending compares to your budget, open the [budget view](#budgets).

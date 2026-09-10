@@ -88,6 +88,17 @@ pub fn calculate_totals(
         })
 }
 
+/// The `(category, subcategory)` a transaction is aggregated under in the category summary.
+pub fn category_summary_keys(tx: &Transaction) -> (&str, &str) {
+    let category = tx.category.trim();
+    let category = if category.is_empty() {
+        "Uncategorized"
+    } else {
+        category
+    };
+    (category, tx.subcategory.trim())
+}
+
 /// Sorts transactions by the selected column and order
 pub fn sort_transactions_impl(
     transactions: &mut [Transaction],

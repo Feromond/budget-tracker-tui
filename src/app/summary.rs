@@ -1,8 +1,11 @@
 use super::state::App;
+use crate::app::fields::AdvancedFilterField;
 use crate::app::state::{AppMode, CategorySummaryItem};
-use crate::model::MonthlySummary;
+use crate::app::util::category_summary_keys;
+use crate::model::{DATE_FORMAT, MonthlySummary};
+use crate::ui::helpers::month_to_short_str;
 use chrono;
-use chrono::Datelike;
+use chrono::{Datelike, NaiveDate};
 
 impl App {
     // --- Private Helpers for Summary Navigation ---
@@ -210,12 +213,12 @@ impl App {
         };
         self.category_summary_table_state.select(Some(i));
     }
-    /// Both item kinds carry their month, so the row can be found again after a year change.
     fn selected_category_summary_month(&self) -> Option<u32> {
         let index = self.category_summary_table_state.selected()?;
         match self.cached_visible_category_items.get(index)? {
             CategorySummaryItem::Month(month, _) => Some(*month),
             CategorySummaryItem::Subcategory(month, _, _, _) => Some(*month),
+            CategorySummaryItem::Transaction(month, _) => Some(*month),
         }
     }
 
@@ -225,13 +228,33 @@ impl App {
             self.category_summary_table_state.select(None);
             return;
         }
-        let position = month.and_then(|month| {
+        let position = self.target_category_summary_month(month).and_then(|month| {
             self.cached_visible_category_items
                 .iter()
                 .position(|item| matches!(item, CategorySummaryItem::Month(m, _) if *m == month))
         });
         self.category_summary_table_state
             .select(Some(position.unwrap_or(0)));
+    }
+
+    /// Same fallback the monthly summary uses: keep the month, else this year's current
+    /// month, else its latest.
+    fn target_category_summary_month(&self, month: Option<u32>) -> Option<u32> {
+        let year = self
+            .category_summary_years
+            .get(self.category_summary_year_index)
+            .copied()?;
+        let months = self.sorted_category_months_for_year(year);
+        if let Some(month) = month
+            && months.contains(&month)
+        {
+            return Some(month);
+        }
+        let now = chrono::Local::now();
+        if year == now.year() && months.contains(&now.month()) {
+            return Some(now.month());
+        }
+        months.last().copied()
     }
 
     pub(crate) fn next_category_summary_year(&mut self) {
@@ -297,24 +320,23 @@ impl App {
                                 subcategories.insert(0, String::new());
                             }
                             for subcategory in subcategories {
-                                let display_category = if category.is_empty() {
-                                    "Uncategorized".to_string()
-                                } else {
-                                    category.clone()
-                                };
-                                let display_subcategory = if subcategory.is_empty() {
-                                    "Uncategorized".to_string()
-                                } else {
-                                    subcategory.clone()
-                                };
                                 if let Some(summary) =
                                     month_map.get(&(category.clone(), subcategory.clone()))
                                 {
                                     items.push(CategorySummaryItem::Subcategory(
                                         month,
-                                        display_category,
-                                        display_subcategory,
+                                        category.clone(),
+                                        subcategory.clone(),
                                         *summary,
+                                    ));
+                                }
+                                let key = (month, category.clone(), subcategory.clone());
+                                if self.expanded_category_summary_subcategories.contains(&key) {
+                                    items.extend(self.transaction_items_for(
+                                        year,
+                                        month,
+                                        &category,
+                                        &subcategory,
                                     ));
                                 }
                             }
@@ -324,6 +346,144 @@ impl App {
             }
         }
         items
+    }
+
+    fn transaction_items_for(
+        &self,
+        year: i32,
+        month: u32,
+        category: &str,
+        subcategory: &str,
+    ) -> Vec<CategorySummaryItem> {
+        let mut matches: Vec<usize> = self
+            .filtered_indices
+            .iter()
+            .copied()
+            .filter(|&index| {
+                let tx = &self.transactions[index];
+                if tx.date.year() != year || tx.date.month() != month {
+                    return false;
+                }
+                let (tx_category, tx_subcategory) = category_summary_keys(tx);
+                tx_category == category && tx_subcategory == subcategory
+            })
+            .collect();
+        matches.sort_by_key(|&index| self.transactions[index].date);
+        matches
+            .into_iter()
+            .map(|index| CategorySummaryItem::Transaction(month, index))
+            .collect()
+    }
+
+    pub(crate) fn toggle_category_summary_row(&mut self) {
+        let Some(selected) = self.category_summary_table_state.selected() else {
+            return;
+        };
+        match self.cached_visible_category_items.get(selected) {
+            Some(CategorySummaryItem::Month(month, _)) => {
+                let month = *month;
+                if !self.expanded_category_summary_months.remove(&month) {
+                    self.expanded_category_summary_months.insert(month);
+                }
+            }
+            Some(CategorySummaryItem::Subcategory(month, category, subcategory, _)) => {
+                let key = (*month, category.clone(), subcategory.clone());
+                if !self.expanded_category_summary_subcategories.remove(&key) {
+                    self.expanded_category_summary_subcategories.insert(key);
+                }
+            }
+            Some(CategorySummaryItem::Transaction(_, index)) => {
+                self.open_transaction_from_category_summary(*index);
+                return;
+            }
+            None => return,
+        }
+        self.cached_visible_category_items = self.get_visible_category_summary_items();
+        let len = self.cached_visible_category_items.len();
+        if len == 0 {
+            self.category_summary_table_state.select(None);
+        } else {
+            self.category_summary_table_state
+                .select(Some(selected.min(len - 1)));
+        }
+    }
+
+    fn open_transaction_from_category_summary(&mut self, index: usize) {
+        if let Some(position) = self.filtered_indices.iter().position(|&i| i == index) {
+            self.table_state.select(Some(position));
+        }
+        self.mode = AppMode::Normal;
+        self.clear_status_message();
+    }
+
+    pub(crate) fn filter_transactions_from_category_summary(&mut self) {
+        let Some(year) = self
+            .category_summary_years
+            .get(self.category_summary_year_index)
+            .copied()
+        else {
+            return;
+        };
+        let Some(selected) = self.category_summary_table_state.selected() else {
+            return;
+        };
+        let (month, category, subcategory) = match self.cached_visible_category_items.get(selected)
+        {
+            Some(CategorySummaryItem::Month(month, _)) => (*month, String::new(), String::new()),
+            Some(CategorySummaryItem::Subcategory(month, category, subcategory, _)) => {
+                (*month, category.clone(), subcategory.clone())
+            }
+            Some(CategorySummaryItem::Transaction(month, index)) => {
+                let Some(tx) = self.transactions.get(*index) else {
+                    return;
+                };
+                let (category, subcategory) = category_summary_keys(tx);
+                (*month, category.to_string(), subcategory.to_string())
+            }
+            None => return,
+        };
+
+        let last_day = crate::validation::days_in_month(year, month);
+        let (Some(from), Some(to)) = (
+            NaiveDate::from_ymd_opt(year, month, 1),
+            NaiveDate::from_ymd_opt(year, month, last_day),
+        ) else {
+            return;
+        };
+
+        // Leave category unrestricted: the filter cannot match missing categories exactly.
+        let category = if category == "Uncategorized" {
+            String::new()
+        } else {
+            category
+        };
+
+        self.clear_all_filter_fields();
+        self.advanced_filter_fields[AdvancedFilterField::DateFrom] =
+            from.format(DATE_FORMAT).to_string();
+        self.advanced_filter_fields[AdvancedFilterField::DateTo] =
+            to.format(DATE_FORMAT).to_string();
+        self.advanced_filter_fields[AdvancedFilterField::Category] = category.clone();
+        self.advanced_filter_fields[AdvancedFilterField::Subcategory] = subcategory.clone();
+        self.apply_advanced_filter();
+        self.mode = AppMode::Normal;
+
+        let scope = match (category.is_empty(), subcategory.is_empty()) {
+            (true, _) => month_to_short_str(month).to_string(),
+            (false, true) => format!("{} {}", month_to_short_str(month), category),
+            (false, false) => {
+                format!(
+                    "{} {} / {}",
+                    month_to_short_str(month),
+                    category,
+                    subcategory
+                )
+            }
+        };
+        self.set_status_message(
+            format!("Filtered to {} {}", scope, year),
+            Some(chrono::Duration::seconds(4)),
+        );
     }
 
     /// Jump to the next month in CategorySummary mode

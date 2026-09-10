@@ -1,5 +1,6 @@
 use crate::app::help::get_help_for_mode;
 use crate::app::state::{App, AppMode};
+use crate::ui::helpers::clamp_table_scroll;
 use ratatui::{prelude::*, widgets::*};
 
 pub fn render_keybindings_popup(f: &mut Frame, app: &mut App, area: Rect) {
@@ -66,6 +67,7 @@ pub fn render_keybindings_popup(f: &mut Frame, app: &mut App, area: Rect) {
     )
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
+    clamp_table_scroll(&mut app.help_table_state, total_rows, popup_area);
     // Render the stateful widget
     f.render_stateful_widget(table, popup_area, &mut app.help_table_state);
 

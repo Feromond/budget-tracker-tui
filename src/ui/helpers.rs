@@ -1,6 +1,22 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Color;
+use ratatui::widgets::{ListState, TableState};
 use rust_decimal::{Decimal, RoundingStrategy};
+
+/// Ratatui clamps a stale offset to `len - 1` and only ever scrolls down, so filtering 400 rows
+/// to 3 leaves one row on screen and two left hidden above it. Ignoring borders and the header is
+/// fine, since this only shrinks the offset and the render pass scrolls back down as needed.
+fn clamped_offset(offset: usize, row_count: usize, area: Rect) -> usize {
+    offset.min(row_count.saturating_sub(area.height as usize))
+}
+
+pub fn clamp_table_scroll(state: &mut TableState, row_count: usize, area: Rect) {
+    *state.offset_mut() = clamped_offset(state.offset(), row_count, area);
+}
+
+pub fn clamp_list_scroll(state: &mut ListState, item_count: usize, area: Rect) {
+    *state.offset_mut() = clamped_offset(state.offset(), item_count, area);
+}
 
 pub fn format_amount(amount: &Decimal) -> String {
     // Rounding via f64 would go off the binary approximation, not the stored decimal digits.

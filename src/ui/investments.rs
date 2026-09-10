@@ -2,7 +2,7 @@ use crate::app::investments::STALE_VALUATION_DAYS;
 use crate::app::state::App;
 use crate::model::{InvestmentEntryKind, InvestmentRange};
 use crate::ui::form::render_field_form;
-use crate::ui::helpers::{centered_rect, format_amount, format_signed_amount};
+use crate::ui::helpers::{centered_rect, clamp_table_scroll, format_amount, format_signed_amount};
 use chrono::NaiveDate;
 use ratatui::prelude::*;
 use ratatui::widgets::{
@@ -490,12 +490,14 @@ fn render_accounts_table(f: &mut Frame, app: &mut App, area: Rect) {
         ));
     }
 
+    let row_count = rows.len();
     let table = Table::new(rows, widths)
         .header(header)
         .block(panel(Line::from(title), Borders::TOP))
         .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
         .highlight_symbol("> ");
 
+    clamp_table_scroll(&mut app.investment_table_state, row_count, area);
     f.render_stateful_widget(table, area, &mut app.investment_table_state);
 }
 
@@ -551,12 +553,14 @@ fn render_entries_table(f: &mut Frame, app: &mut App, area: Rect) {
         Constraint::Min(3),
     ];
 
+    let row_count = rows.len();
     let table = Table::new(rows, widths)
         .header(header)
         .block(panel(Line::from(heading("History")), Borders::TOP))
         .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
         .highlight_symbol("> ");
 
+    clamp_table_scroll(&mut app.investment_entry_table_state, row_count, area);
     f.render_stateful_widget(table, area, &mut app.investment_entry_table_state);
 }
 

@@ -1,6 +1,6 @@
 use crate::app::state::App;
 use crate::model::{DATE_FORMAT, SortColumn, SortOrder, TransactionType};
-use crate::ui::helpers::{format_amount, format_hours};
+use crate::ui::helpers::{clamp_table_scroll, format_amount, format_hours};
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 pub fn render_transaction_table(f: &mut Frame, app: &mut App, area: Rect) {
@@ -147,5 +147,6 @@ pub fn render_transaction_table(f: &mut Frame, app: &mut App, area: Rect) {
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
     .highlight_symbol(" > ");
 
+    clamp_table_scroll(&mut app.table_state, app.filtered_indices.len(), area);
     f.render_stateful_widget(table, area, &mut app.table_state);
 }

@@ -1,6 +1,8 @@
 use crate::app::state::{App, BudgetCategoryComparison, BudgetEditTarget};
 use crate::model::{BudgetEditScope, BudgetMonth};
-use crate::ui::helpers::{format_amount, format_signed_amount, month_to_color, month_to_short_str};
+use crate::ui::helpers::{
+    clamp_table_scroll, format_amount, format_signed_amount, month_to_color, month_to_short_str,
+};
 use ratatui::prelude::*;
 use ratatui::text::Line;
 use ratatui::widgets::{
@@ -601,6 +603,8 @@ pub fn render_budget_view(f: &mut Frame, app: &mut App, area: Rect) {
         comparisons.iter().map(comparison_row).collect()
     };
 
+    let row_count = rows.len();
+
     let bottom_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(62), Constraint::Percentage(38)])
@@ -644,6 +648,7 @@ pub fn render_budget_view(f: &mut Frame, app: &mut App, area: Rect) {
     ))
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
     .highlight_symbol(" > ");
+    clamp_table_scroll(&mut app.budget_table_state, row_count, bottom_chunks[0]);
     f.render_stateful_widget(table, bottom_chunks[0], &mut app.budget_table_state);
 
     let detail_chunks = Layout::default()

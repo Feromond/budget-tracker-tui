@@ -17,15 +17,18 @@
 
 A terminal app for tracking your personal budget, built with [Rust](https://www.rust-lang.org) and [Ratatui](https://ratatui.rs).
 
-<p align="center">
-  <img width="2000" height="1226" alt="Budget Tracker tour" src="https://github.com/user-attachments/assets/10387ade-007f-4ba0-b62b-a261a6acf46a" />
-</p>
-
 ```bash
 cargo install budget-tracker-tui
 # or
 brew install budget-tracker
 ```
+
+<p align="center">
+  <img width="2000" height="1226" alt="Budget Tracker tour" src="https://github.com/user-attachments/assets/10387ade-007f-4ba0-b62b-a261a6acf46a" />
+  <br><i>Mini App Tour gif</i><br><br>
+
+</p>
+
 
 ## Screenshots
 

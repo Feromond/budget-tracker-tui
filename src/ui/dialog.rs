@@ -1,5 +1,5 @@
 use crate::app::state::App;
-use crate::ui::helpers::centered_rect;
+use crate::ui::helpers::{centered_rect, clamp_list_scroll};
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
@@ -35,6 +35,7 @@ pub fn render_selection_popup(f: &mut Frame, app: &mut App, area: Rect) {
         .map(|i| ListItem::new(i.as_str()).style(Style::default().fg(Color::White)))
         .collect();
 
+    let item_count = items.len();
     let list = List::new(items)
         .block(Block::default().title(popup_title).borders(Borders::ALL))
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
@@ -43,5 +44,6 @@ pub fn render_selection_popup(f: &mut Frame, app: &mut App, area: Rect) {
     let popup_area = centered_rect(60, 50, area);
 
     f.render_widget(Clear, popup_area);
+    clamp_list_scroll(&mut app.selection_list_state, item_count, popup_area);
     f.render_stateful_widget(list, popup_area, &mut app.selection_list_state);
 }

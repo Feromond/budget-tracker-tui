@@ -1,6 +1,6 @@
 use crate::app::state::{App, CategorySummaryItem};
 use crate::model::{MonthlySummary, TransactionType};
-use crate::ui::helpers::{format_amount, month_to_short_str};
+use crate::ui::helpers::{clamp_table_scroll, format_amount, month_to_short_str};
 use ratatui::prelude::*;
 use ratatui::text::Line;
 use ratatui::widgets::*;
@@ -351,6 +351,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
         Line::from(title_spans)
     };
 
+    let item_count = items.len();
     let table = Table::new(
         rows,
         [
@@ -367,6 +368,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
     .highlight_symbol(" > ");
 
+    clamp_table_scroll(&mut app.category_summary_table_state, item_count, list_area);
     f.render_stateful_widget(table, list_area, &mut app.category_summary_table_state);
 
     let footer_table = Table::new(

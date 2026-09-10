@@ -2,6 +2,7 @@ use crate::app::fields::CategoryEditField;
 use crate::app::state::App;
 use crate::model::{CategorySortColumn, SortOrder};
 use crate::ui::form::render_field_form;
+use crate::ui::helpers::clamp_table_scroll;
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
@@ -115,6 +116,11 @@ pub fn render_category_catalog(f: &mut Frame, app: &mut App, area: Rect) {
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
     .highlight_symbol("> ");
 
+    clamp_table_scroll(
+        &mut app.category_table_state,
+        app.filtered_category_indices.len(),
+        area,
+    );
     f.render_stateful_widget(table, area, &mut app.category_table_state);
 }
 

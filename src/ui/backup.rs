@@ -1,5 +1,6 @@
 use crate::app::state::App;
 use crate::db::backup::{BackupEntry, backups_dir};
+use crate::ui::helpers::clamp_table_scroll;
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
@@ -64,6 +65,7 @@ pub fn render_backup_manager(f: &mut Frame, app: &mut App, area: Rect) {
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
     .highlight_symbol("> ");
 
+    clamp_table_scroll(&mut app.backup_table_state, app.backup_entries.len(), area);
     f.render_stateful_widget(table, area, &mut app.backup_table_state);
 }
 

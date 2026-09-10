@@ -40,7 +40,7 @@ pub fn render_keybindings_popup(f: &mut Frame, app: &mut App, area: Rect) {
     let table = Table::new(
         rows,
         [
-            Constraint::Length(15),
+            Constraint::Length(20),
             Constraint::Percentage(60),
             Constraint::Percentage(20),
         ],

@@ -54,7 +54,8 @@ where
                 Event::Paste(text) => app.handle_paste(&text),
                 Event::Key(key)
                     if key.kind == KeyEventKind::Press
-                        && (key.modifiers == KeyModifiers::NONE
+                        && (app.show_update_popup
+                                || key.modifiers == KeyModifiers::NONE
                                 || (app.mode == AppMode::Settings && key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Char('d') | KeyCode::Char('u') | KeyCode::Char('v')))
                                 // Let Shift+Char pass through for typing capitals/symbols in settings path
                                 || (app.mode == AppMode::Settings && key.modifiers == KeyModifiers::SHIFT && matches!(key.code, KeyCode::Char(_)))
@@ -117,7 +118,7 @@ fn update(app: &mut App, key_event: KeyEvent) {
     if app.show_update_popup {
         if key_event.kind == KeyEventKind::Press {
             match key_event.code {
-                KeyCode::Enter | KeyCode::Char('o') => {
+                KeyCode::Enter | KeyCode::Char('o') | KeyCode::Char('O') => {
                     let opened = crate::app::util::open_url(
                         "https://github.com/Feromond/budget-tracker-tui/releases",
                     );

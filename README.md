@@ -23,6 +23,9 @@ cargo install budget-tracker-tui
 brew install budget-tracker
 ```
 
+<img width="2000" height="1226" alt="budget-tracker-tour-gif" src="https://github.com/user-attachments/assets/10387ade-007f-4ba0-b62b-a261a6acf46a" />
+
+
 ## Screenshots
 
 <p align="center">

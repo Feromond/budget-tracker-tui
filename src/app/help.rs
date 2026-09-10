@@ -134,7 +134,7 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             ),
         ],
         AppMode::Adding | AppMode::Editing => vec![
-            KeyBindingInfo::new("Tab/↑/↓", "Navigate fields", "Navigation", None),
+            KeyBindingInfo::new("Tab/Shift+Tab/↑↓", "Navigate fields", "Navigation", None),
             KeyBindingInfo::new(
                 "Date Field",
                 "Transaction Date (YYYY-MM-DD)",
@@ -237,7 +237,7 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("Ctrl+H", "Show Keybindings Help", "System", None),
         ],
         AppMode::AdvancedFiltering => vec![
-            KeyBindingInfo::new("Tab/↑/↓", "Navigate fields", "Navigation", None),
+            KeyBindingInfo::new("Tab/Shift+Tab/↑↓", "Navigate fields", "Navigation", None),
             KeyBindingInfo::new(
                 "Start Date",
                 "Filter From Date",
@@ -375,7 +375,7 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("←/→", "Move cursor", "Navigation", None),
             KeyBindingInfo::new("Bksp/Del", "Delete character", "Input", None),
             KeyBindingInfo::new(
-                "↑/↓",
+                "Tab/Shift+Tab/↑↓",
                 "Choose how far the change reaches",
                 "Actions",
                 Some(
@@ -392,7 +392,7 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("Ctrl+H", "Show Keybindings Help", "System", None),
         ],
         AppMode::Settings => vec![
-            KeyBindingInfo::new("Tab/↑/↓", "Navigate settings", "Navigation", None),
+            KeyBindingInfo::new("Tab/Shift+Tab/↑↓", "Navigate settings", "Navigation", None),
             KeyBindingInfo::new(
                 "Database Path",
                 "SQLite Database Location",
@@ -555,7 +555,7 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("Ctrl+H", "Show Keybindings Help", "System", None),
         ],
         AppMode::CategoryEditor => vec![
-            KeyBindingInfo::new("Tab/↑/↓", "Navigate fields", "Navigation", None),
+            KeyBindingInfo::new("Tab/Shift+Tab/↑↓", "Navigate fields", "Navigation", None),
             KeyBindingInfo::new("←/→", "Toggle type / move cursor", "Navigation", None),
             KeyBindingInfo::new("Enter", "Toggle type or save", "Actions", None),
             KeyBindingInfo::new(
@@ -653,7 +653,12 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("q/Esc", "Back to the accounts list", "System", None),
         ],
         AppMode::InvestmentAccountEditor => vec![
-            KeyBindingInfo::new("Tab/↑/↓", "Move between fields", "Navigation", None),
+            KeyBindingInfo::new(
+                "Tab/Shift+Tab/↑↓",
+                "Move between fields",
+                "Navigation",
+                None,
+            ),
             KeyBindingInfo::new("←/→", "Move cursor, or toggle status", "Navigation", None),
             KeyBindingInfo::new(
                 "Starting Value",
@@ -675,7 +680,12 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("Esc", "Cancel", "System", None),
         ],
         AppMode::InvestmentEntryEditor => vec![
-            KeyBindingInfo::new("Tab/↑/↓", "Move between fields", "Navigation", None),
+            KeyBindingInfo::new(
+                "Tab/Shift+Tab/↑↓",
+                "Move between fields",
+                "Navigation",
+                None,
+            ),
             KeyBindingInfo::new(
                 "←/→",
                 "Move cursor, step the date, or toggle the entry",
@@ -787,7 +797,7 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("n/Esc", "Cancel", "Actions", None),
         ],
         AppMode::RecurringSettings => vec![
-            KeyBindingInfo::new("Tab/↑/↓", "Navigate fields", "Navigation", None),
+            KeyBindingInfo::new("Tab/Shift+Tab/↑↓", "Navigate fields", "Navigation", None),
             KeyBindingInfo::new(
                 "Active",
                 "Enable/Disable",

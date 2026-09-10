@@ -104,7 +104,7 @@ fn normalize_key(mut key: KeyEvent) -> KeyEvent {
     if key.modifiers == KeyModifiers::SHIFT
         && matches!(
             key.code,
-            KeyCode::Backspace | KeyCode::Delete | KeyCode::Enter
+            KeyCode::Backspace | KeyCode::Delete | KeyCode::Enter | KeyCode::BackTab
         )
     {
         key.modifiers = KeyModifiers::NONE;

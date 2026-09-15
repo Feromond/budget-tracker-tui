@@ -277,7 +277,7 @@ fn render_value_chart(f: &mut Frame, app: &App, area: Rect) {
         .chain(invested_points.iter())
         .map(|(_, y)| *y)
         .fold(0.0f64, f64::max);
-    let y_max = if peak <= 0.0 { 1.0 } else { peak * 1.1 };
+    let y_max = if peak <= 0.0 { 1.0 } else { peak * 1.2 };
     let x_max = (series.len().max(2) - 1) as f64;
 
     let datasets = vec![

@@ -372,7 +372,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
     let table = Table::new(
         rows,
         [
-            Constraint::Length(5),
+            Constraint::Length(7),
             Constraint::Percentage(30),
             Constraint::Percentage(30),
             Constraint::Percentage(12),

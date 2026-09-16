@@ -2,10 +2,27 @@ use super::state::App;
 use crate::app::fields::AdvancedFilterField;
 use crate::app::state::{AppMode, CategorySummaryItem};
 use crate::app::util::category_summary_keys;
-use crate::model::{DATE_FORMAT, MonthlySummary};
+use crate::model::{CategorySummarySortColumn, DATE_FORMAT, MonthlySummary, SortOrder};
 use crate::ui::helpers::month_to_short_str;
 use chrono;
 use chrono::{Datelike, NaiveDate};
+use rust_decimal::Decimal;
+use std::cmp::Ordering;
+
+fn same_category_summary_row(a: &CategorySummaryItem, b: &CategorySummaryItem) -> bool {
+    match (a, b) {
+        (CategorySummaryItem::Month(a, _), CategorySummaryItem::Month(b, _)) => a == b,
+        (
+            CategorySummaryItem::Subcategory(a_month, a_cat, a_sub, _),
+            CategorySummaryItem::Subcategory(b_month, b_cat, b_sub, _),
+        ) => a_month == b_month && a_cat == b_cat && a_sub == b_sub,
+        (
+            CategorySummaryItem::Transaction(a_month, a_index),
+            CategorySummaryItem::Transaction(b_month, b_index),
+        ) => a_month == b_month && a_index == b_index,
+        _ => false,
+    }
+}
 
 impl App {
     // --- Private Helpers for Summary Navigation ---
@@ -169,10 +186,7 @@ impl App {
                 self.category_summary_year_index = self.category_summary_years.len() - 1;
             }
         }
-        self.cached_visible_category_items = self.get_visible_category_summary_items();
-        let len = self.cached_visible_category_items.len();
-        self.category_summary_table_state
-            .select(if len > 0 { Some(0) } else { None });
+        self.rebuild_category_summary_items(None);
         self.clear_status_message();
     }
     pub(crate) fn exit_category_summary_mode(&mut self) {
@@ -228,13 +242,16 @@ impl App {
             self.category_summary_table_state.select(None);
             return;
         }
-        let position = self.target_category_summary_month(month).and_then(|month| {
-            self.cached_visible_category_items
-                .iter()
-                .position(|item| matches!(item, CategorySummaryItem::Month(m, _) if *m == month))
-        });
+        let position = self.category_summary_month_row(month);
         self.category_summary_table_state
             .select(Some(position.unwrap_or(0)));
+    }
+
+    fn category_summary_month_row(&self, month: Option<u32>) -> Option<usize> {
+        let month = self.target_category_summary_month(month)?;
+        self.cached_visible_category_items
+            .iter()
+            .position(|item| matches!(item, CategorySummaryItem::Month(m, _) if *m == month))
     }
 
     /// Same fallback the monthly summary uses: keep the month, else this year's current
@@ -278,74 +295,150 @@ impl App {
     }
     pub(crate) fn get_visible_category_summary_items(&self) -> Vec<CategorySummaryItem> {
         let mut items = Vec::new();
-        if let Some(year) = self
+        let Some(year) = self
             .category_summary_years
             .get(self.category_summary_year_index)
             .copied()
-        {
-            let mut months: Vec<u32> = self
-                .category_summaries
-                .keys()
-                .filter_map(|(y, m)| if *y == year { Some(*m) } else { None })
-                .collect();
-            months.sort_unstable();
-            months.dedup();
-            for month in months {
-                if let Some(month_map) = self.category_summaries.get(&(year, month)) {
-                    let mut month_total = MonthlySummary::default();
-                    for summary in month_map.values() {
-                        month_total.income += summary.income;
-                        month_total.expense += summary.expense;
-                    }
-                    items.push(CategorySummaryItem::Month(month, month_total));
-                    if self.expanded_category_summary_months.contains(&month) {
-                        let mut categories: Vec<String> =
-                            month_map.keys().map(|(cat, _)| cat.clone()).collect();
-                        categories.sort_unstable();
-                        categories.dedup();
-                        for category in categories {
-                            let mut subcategories: Vec<String> = month_map
-                                .keys()
-                                .filter_map(|(cat, sub)| {
-                                    if cat == &category && !sub.is_empty() {
-                                        Some(sub.clone())
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect();
-                            subcategories.sort_unstable();
-                            // Always include the case where subcategory is empty (Uncategorized)
-                            if month_map.contains_key(&(category.clone(), String::new())) {
-                                subcategories.insert(0, String::new());
-                            }
-                            for subcategory in subcategories {
-                                if let Some(summary) =
-                                    month_map.get(&(category.clone(), subcategory.clone()))
-                                {
-                                    items.push(CategorySummaryItem::Subcategory(
-                                        month,
-                                        category.clone(),
-                                        subcategory.clone(),
-                                        *summary,
-                                    ));
-                                }
-                                let key = (month, category.clone(), subcategory.clone());
-                                if self.expanded_category_summary_subcategories.contains(&key) {
-                                    items.extend(self.transaction_items_for(
-                                        year,
-                                        month,
-                                        &category,
-                                        &subcategory,
-                                    ));
-                                }
-                            }
-                        }
-                    }
+        else {
+            return items;
+        };
+        for (month, month_total) in self.sorted_category_month_totals(year) {
+            items.push(CategorySummaryItem::Month(month, month_total));
+            if !self.expanded_category_summary_months.contains(&month) {
+                continue;
+            }
+            for (category, subcategory, summary) in self.sorted_category_rows_for(year, month) {
+                items.push(CategorySummaryItem::Subcategory(
+                    month,
+                    category.clone(),
+                    subcategory.clone(),
+                    summary,
+                ));
+                let key = (month, category.clone(), subcategory.clone());
+                if self.expanded_category_summary_subcategories.contains(&key) {
+                    items.extend(self.transaction_items_for(year, month, &category, &subcategory));
                 }
             }
         }
         items
+    }
+
+    pub(crate) fn set_category_summary_sort_column(&mut self, column: CategorySummarySortColumn) {
+        if self.category_summary_sort_by == column {
+            self.category_summary_sort_order = match self.category_summary_sort_order {
+                SortOrder::Ascending => SortOrder::Descending,
+                SortOrder::Descending => SortOrder::Ascending,
+            };
+        } else {
+            self.category_summary_sort_by = column;
+            self.category_summary_sort_order = SortOrder::Ascending;
+        }
+        self.resort_category_summary_items();
+    }
+
+    fn resort_category_summary_items(&mut self) {
+        let selected = self
+            .category_summary_table_state
+            .selected()
+            .and_then(|index| self.cached_visible_category_items.get(index).cloned());
+        let month = self.selected_category_summary_month();
+        self.cached_visible_category_items = self.get_visible_category_summary_items();
+        if self.cached_visible_category_items.is_empty() {
+            self.category_summary_table_state.select(None);
+            return;
+        }
+        let position = selected
+            .and_then(|row| {
+                self.cached_visible_category_items
+                    .iter()
+                    .position(|candidate| same_category_summary_row(candidate, &row))
+            })
+            .or_else(|| self.category_summary_month_row(month));
+        self.category_summary_table_state
+            .select(Some(position.unwrap_or(0)));
+    }
+
+    fn applied_category_summary_order(&self, ordering: Ordering) -> Ordering {
+        match self.category_summary_sort_order {
+            SortOrder::Ascending => ordering,
+            SortOrder::Descending => ordering.reverse(),
+        }
+    }
+
+    fn category_summary_amount_key(&self, summary: &MonthlySummary) -> Decimal {
+        match self.category_summary_sort_by {
+            CategorySummarySortColumn::Income => summary.income,
+            CategorySummarySortColumn::Expense => summary.expense,
+            _ => summary.income - summary.expense,
+        }
+    }
+
+    fn sorted_category_month_totals(&self, year: i32) -> Vec<(u32, MonthlySummary)> {
+        let mut months: Vec<(u32, MonthlySummary)> = self
+            .sorted_category_months_for_year(year)
+            .into_iter()
+            .map(|month| {
+                let mut total = MonthlySummary::default();
+                if let Some(month_map) = self.category_summaries.get(&(year, month)) {
+                    for summary in month_map.values() {
+                        total.income += summary.income;
+                        total.expense += summary.expense;
+                    }
+                }
+                (month, total)
+            })
+            .collect();
+        match self.category_summary_sort_by {
+            CategorySummarySortColumn::Month => {
+                if self.category_summary_sort_order == SortOrder::Descending {
+                    months.reverse();
+                }
+            }
+            CategorySummarySortColumn::Category | CategorySummarySortColumn::Subcategory => {}
+            _ => months.sort_by(|(a_month, a_total), (b_month, b_total)| {
+                self.applied_category_summary_order(
+                    self.category_summary_amount_key(a_total)
+                        .cmp(&self.category_summary_amount_key(b_total)),
+                )
+                .then(a_month.cmp(b_month))
+            }),
+        }
+        months
+    }
+
+    fn sorted_category_rows_for(
+        &self,
+        year: i32,
+        month: u32,
+    ) -> Vec<(String, String, MonthlySummary)> {
+        let Some(month_map) = self.category_summaries.get(&(year, month)) else {
+            return Vec::new();
+        };
+        let mut rows: Vec<(String, String, MonthlySummary)> = month_map
+            .iter()
+            .map(|((category, subcategory), summary)| {
+                (category.clone(), subcategory.clone(), *summary)
+            })
+            .collect();
+        rows.sort_by(|(a_cat, a_sub, a_summary), (b_cat, b_sub, b_summary)| {
+            match self.category_summary_sort_by {
+                CategorySummarySortColumn::Month => a_cat.cmp(b_cat).then(a_sub.cmp(b_sub)),
+                CategorySummarySortColumn::Category => self
+                    .applied_category_summary_order(a_cat.cmp(b_cat))
+                    .then(a_sub.cmp(b_sub)),
+                CategorySummarySortColumn::Subcategory => self
+                    .applied_category_summary_order(a_sub.cmp(b_sub))
+                    .then(a_cat.cmp(b_cat)),
+                _ => self
+                    .applied_category_summary_order(
+                        self.category_summary_amount_key(a_summary)
+                            .cmp(&self.category_summary_amount_key(b_summary)),
+                    )
+                    .then(a_cat.cmp(b_cat))
+                    .then(a_sub.cmp(b_sub)),
+            }
+        });
+        rows
     }
 
     fn transaction_items_for(
@@ -368,11 +461,34 @@ impl App {
                 tx_category == category && tx_subcategory == subcategory
             })
             .collect();
-        matches.sort_by_key(|&index| self.transactions[index].date);
+        match self.category_summary_sort_by {
+            CategorySummarySortColumn::Income
+            | CategorySummarySortColumn::Expense
+            | CategorySummarySortColumn::Net => matches.sort_by(|&a, &b| {
+                self.applied_category_summary_order(
+                    self.transaction_sort_key(a)
+                        .cmp(&self.transaction_sort_key(b)),
+                )
+                .then_with(|| self.transactions[a].date.cmp(&self.transactions[b].date))
+            }),
+            _ => matches.sort_by_key(|&index| self.transactions[index].date),
+        }
         matches
             .into_iter()
             .map(|index| CategorySummaryItem::Transaction(month, index))
             .collect()
+    }
+
+    fn transaction_sort_key(&self, index: usize) -> Decimal {
+        let tx = &self.transactions[index];
+        let income = tx.transaction_type == crate::model::TransactionType::Income;
+        match (self.category_summary_sort_by, income) {
+            (CategorySummarySortColumn::Income, true) => tx.amount,
+            (CategorySummarySortColumn::Expense, false) => tx.amount,
+            (CategorySummarySortColumn::Net, true) => tx.amount,
+            (CategorySummarySortColumn::Net, false) => -tx.amount,
+            _ => Decimal::ZERO,
+        }
     }
 
     pub(crate) fn toggle_category_summary_row(&mut self) {

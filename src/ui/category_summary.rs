@@ -1,5 +1,5 @@
 use crate::app::state::{App, CategorySummaryItem};
-use crate::model::{MonthlySummary, TransactionType};
+use crate::model::{CategorySummarySortColumn, MonthlySummary, SortOrder, TransactionType};
 use crate::ui::helpers::{clamp_table_scroll, format_amount, month_to_short_str};
 use ratatui::prelude::*;
 use ratatui::text::Line;
@@ -87,7 +87,24 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
         "Expense",
         "Net",
     ];
+    let sort_columns = [
+        CategorySummarySortColumn::Month,
+        CategorySummarySortColumn::Category,
+        CategorySummarySortColumn::Subcategory,
+        CategorySummarySortColumn::Income,
+        CategorySummarySortColumn::Expense,
+        CategorySummarySortColumn::Net,
+    ];
     let header_cells = header_titles.iter().enumerate().map(|(i, h)| {
+        let symbol = if app.category_summary_sort_by == sort_columns[i] {
+            match app.category_summary_sort_order {
+                SortOrder::Ascending => " ▲",
+                SortOrder::Descending => " ▼",
+            }
+        } else {
+            ""
+        };
+        let title = format!("{}{}", h, symbol);
         let (content, style) = if i >= 3 {
             let s = match i {
                 3 => Style::default().fg(Color::LightGreen).bold(), // Income
@@ -95,9 +112,9 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
                 5 => Style::default().fg(Color::LightBlue).bold(),  // Net
                 _ => Style::default().fg(Color::Cyan).bold(),
             };
-            (Line::from(*h).alignment(Alignment::Right), s)
+            (Line::from(title).alignment(Alignment::Right), s)
         } else {
-            (Line::from(*h), Style::default().fg(Color::Cyan).bold())
+            (Line::from(title), Style::default().fg(Color::Cyan).bold())
         };
         Cell::from(content).style(style)
     });
@@ -355,7 +372,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
     let table = Table::new(
         rows,
         [
-            Constraint::Length(5),
+            Constraint::Length(7),
             Constraint::Percentage(30),
             Constraint::Percentage(30),
             Constraint::Percentage(12),

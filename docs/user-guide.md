@@ -128,7 +128,9 @@ The monthly summary shows a daily spending chart and monthly net-balance bars. T
 
 The category summary shows income, expenses, and net by month, with category/subcategory rows underneath. `↑`/`↓` select rows; `Enter` on a month heading expands or collapses it. `PageUp`/`PageDown` jump between months, and `←`/`→` or `[`/`]` change years.
 
-`Enter` on a subcategory shows its transactions oldest first, with a count beside the name. Amounts are dimmed because they are already included in the total above. Press `Enter` again to collapse it, or on a transaction to open it in the main list with your filters unchanged.
+`1`-`6` (or `F1`-`F6`) sort by month, category, subcategory, income, expense, or net; pressing the same key again flips the direction, and the sorted column is marked in the header. Month sorts reorder the month rows, category and subcategory sorts reorder the rows inside each month, and the three amount sorts reorder both. The selected row stays under the cursor.
+
+`Enter` on a subcategory shows its transactions, with a count beside the name. They appear oldest first, or by amount when sorting by income, expense, or net. Amounts are dimmed because they are already included in the total above. Press `Enter` again to collapse it, or on a transaction to open it in the main list with your filters unchanged.
 
 `f` opens the main list with new filters based on the selected row. Month rows filter by month; other rows also use the category and subcategory. Names match partial text, ignoring case. A blank subcategory or an `Uncategorized` category leaves that field unrestricted, so the list can include more than the selected group. These filters also apply to summaries. Press `q` in the main list to clear them.
 

@@ -192,6 +192,13 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" Month Jump | "),
+            Span::styled(
+                "1-6",
+                Style::default()
+                    .fg(Color::LightMagenta)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" Sort | "),
             Span::styled("Enter", Style::default().fg(Color::Magenta)),
             Span::raw(" Drill Down | "),
             Span::styled("f", Style::default().fg(Color::LightYellow)),

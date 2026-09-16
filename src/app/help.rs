@@ -336,11 +336,19 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("←/→ / [/]", "Change Year", "Navigation", None),
             KeyBindingInfo::new("PgUp/PgDn", "Jump Selected Month", "Navigation", None),
             KeyBindingInfo::new(
+                "1-6 / F1-F6",
+                "Sort by Column",
+                "View",
+                Some(
+                    "Sort by month, category, subcategory, income, expense, or net; the same key again flips the direction. Month reorders the month rows, category and subcategory reorder the rows inside a month, and the amount columns reorder both.",
+                ),
+            ),
+            KeyBindingInfo::new(
                 "Enter",
                 "Drill Down One Level",
                 "Actions",
                 Some(
-                    "Expand or collapse a month or subcategory. Transactions appear oldest first. Press Enter on a transaction to open it in the main list with your filters unchanged.",
+                    "Expand or collapse a month or subcategory. Transactions appear oldest first, or by amount when sorting by income, expense, or net. Press Enter on a transaction to open it in the main list with your filters unchanged.",
                 ),
             ),
             KeyBindingInfo::new(

@@ -1,4 +1,5 @@
 use crate::app::state::{App, AppMode};
+use crate::model::CategorySummarySortColumn;
 use crossterm::event::{KeyCode, KeyEvent};
 
 pub fn handle_summary_mode(app: &mut App, key_event: KeyEvent) {
@@ -35,6 +36,24 @@ fn handle_category_summary(app: &mut App, key_event: KeyEvent) {
         KeyCode::Char('[') | KeyCode::Left => app.previous_category_summary_year(),
         KeyCode::Enter => app.toggle_category_summary_row(),
         KeyCode::Char('f') => app.filter_transactions_from_category_summary(),
+        KeyCode::Char('1') | KeyCode::F(1) => {
+            app.set_category_summary_sort_column(CategorySummarySortColumn::Month)
+        }
+        KeyCode::Char('2') | KeyCode::F(2) => {
+            app.set_category_summary_sort_column(CategorySummarySortColumn::Category)
+        }
+        KeyCode::Char('3') | KeyCode::F(3) => {
+            app.set_category_summary_sort_column(CategorySummarySortColumn::Subcategory)
+        }
+        KeyCode::Char('4') | KeyCode::F(4) => {
+            app.set_category_summary_sort_column(CategorySummarySortColumn::Income)
+        }
+        KeyCode::Char('5') | KeyCode::F(5) => {
+            app.set_category_summary_sort_column(CategorySummarySortColumn::Expense)
+        }
+        KeyCode::Char('6') | KeyCode::F(6) => {
+            app.set_category_summary_sort_column(CategorySummarySortColumn::Net)
+        }
         _ => {}
     }
 }

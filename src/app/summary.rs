@@ -169,10 +169,7 @@ impl App {
                 self.category_summary_year_index = self.category_summary_years.len() - 1;
             }
         }
-        self.cached_visible_category_items = self.get_visible_category_summary_items();
-        let len = self.cached_visible_category_items.len();
-        self.category_summary_table_state
-            .select(if len > 0 { Some(0) } else { None });
+        self.rebuild_category_summary_items(None);
         self.clear_status_message();
     }
     pub(crate) fn exit_category_summary_mode(&mut self) {

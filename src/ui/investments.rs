@@ -6,7 +6,8 @@ use crate::ui::helpers::{centered_rect, clamp_table_scroll, format_amount, forma
 use chrono::NaiveDate;
 use ratatui::prelude::*;
 use ratatui::widgets::{
-    Axis, Block, Borders, Cell, Chart, Clear, Dataset, GraphType, Paragraph, Row, Table, Wrap,
+    Axis, Block, Borders, Cell, Chart, Clear, Dataset, GraphType, LegendPosition, Paragraph, Row,
+    Table, Wrap,
 };
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
@@ -276,7 +277,7 @@ fn render_value_chart(f: &mut Frame, app: &App, area: Rect) {
         .chain(invested_points.iter())
         .map(|(_, y)| *y)
         .fold(0.0f64, f64::max);
-    let y_max = if peak <= 0.0 { 1.0 } else { peak * 1.1 };
+    let y_max = if peak <= 0.0 { 1.0 } else { peak * 1.2 };
     let x_max = (series.len().max(2) - 1) as f64;
 
     let datasets = vec![
@@ -317,7 +318,8 @@ fn render_value_chart(f: &mut Frame, app: &App, area: Rect) {
             Axis::default()
                 .bounds([0.0, y_max])
                 .labels(axis_amounts(y_max)),
-        );
+        )
+        .legend_position(Some(LegendPosition::TopLeft));
 
     f.render_widget(chart, area);
 }

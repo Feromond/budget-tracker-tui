@@ -75,7 +75,7 @@ pub enum InvestmentDeleteTarget {
     Entry(i64),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CategorySummaryItem {
     Month(u32, MonthlySummary),
     /// Keep the category keys for matching transactions.
@@ -150,6 +150,8 @@ pub struct App {
     pub(crate) category_summaries: HashMap<(i32, u32), HashMap<(String, String), MonthlySummary>>,
     pub(crate) category_summary_years: Vec<i32>,
     pub(crate) category_summary_year_index: usize,
+    pub(crate) category_summary_sort_by: CategorySummarySortColumn,
+    pub(crate) category_summary_sort_order: SortOrder,
     // Expansion state for hierarchical category summary
     pub(crate) expanded_category_summary_months: HashSet<u32>,
     pub(crate) expanded_category_summary_subcategories: HashSet<(u32, String, String)>,
@@ -416,6 +418,8 @@ impl App {
             category_summaries: HashMap::new(),
             category_summary_years: Vec::new(),
             category_summary_year_index: 0,
+            category_summary_sort_by: CategorySummarySortColumn::Month,
+            category_summary_sort_order: SortOrder::Ascending,
             category_summary_table_state: TableState::default(),
             expanded_category_summary_months: HashSet::new(),
             expanded_category_summary_subcategories: HashSet::new(),

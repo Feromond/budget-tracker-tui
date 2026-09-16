@@ -417,6 +417,16 @@ impl BudgetSchedule {
 }
 
 #[derive(PartialEq, Clone, Copy)]
+pub enum CategorySummarySortColumn {
+    Month,
+    Category,
+    Subcategory,
+    Income,
+    Expense,
+    Net,
+}
+
+#[derive(PartialEq, Clone, Copy)]
 pub enum CategorySortColumn {
     Type,
     Category,

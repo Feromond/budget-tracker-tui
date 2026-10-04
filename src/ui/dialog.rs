@@ -4,7 +4,14 @@ use ratatui::prelude::*;
 use ratatui::widgets::*;
 
 pub fn render_confirmation_dialog(f: &mut Frame, message: &str, area: Rect) {
-    let dialog_area = centered_rect(60, 20, area);
+    let base = centered_rect(60, 20, area);
+    let lines = wrapped_line_count(message, base.width.saturating_sub(2));
+    let height = (lines + 2).max(base.height).min(area.height);
+    let dialog_area = Rect {
+        y: area.y + (area.height - height) / 2,
+        height,
+        ..base
+    };
 
     let dialog_block = Block::default()
         .title("Confirmation")
@@ -19,6 +26,31 @@ pub fn render_confirmation_dialog(f: &mut Frame, message: &str, area: Rect) {
 
     f.render_widget(Clear, dialog_area); // Clear the area behind the dialog
     f.render_widget(dialog_text, dialog_area);
+}
+
+fn wrapped_line_count(text: &str, width: u16) -> u16 {
+    let width = usize::from(width.max(1));
+    let mut lines = 0u16;
+    for paragraph in text.lines() {
+        let mut used = 0;
+        lines += 1;
+        for word in paragraph.split_whitespace() {
+            let len = word.chars().count();
+            if used == 0 {
+                used = len;
+            } else if used + 1 + len <= width {
+                used += 1 + len;
+            } else {
+                lines += 1;
+                used = len;
+            }
+            while used > width {
+                lines += 1;
+                used -= width;
+            }
+        }
+    }
+    lines.max(1)
 }
 
 pub fn render_selection_popup(f: &mut Frame, app: &mut App, area: Rect) {

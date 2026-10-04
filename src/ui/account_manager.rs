@@ -18,8 +18,8 @@ pub fn balance_label(account: &Account, balance: Decimal) -> &'static str {
 
 pub fn balance_amount(account: &Account, balance: Decimal) -> String {
     match account.class {
-        AccountClass::Cash if balance < Decimal::ZERO => format!("-{}", format_amount(&balance)),
-        _ => format_amount(&balance),
+        AccountClass::Credit => format_amount(&balance.abs()),
+        AccountClass::Cash | AccountClass::Investment => format_amount(&balance),
     }
 }
 

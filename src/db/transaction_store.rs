@@ -1282,7 +1282,7 @@ mod tests {
             UNIQUE(ledger_id, name)
         );
         INSERT INTO investment_accounts (id, ledger_id, name)
-        VALUES (3, 1, 'TFSA'), (4, 2, 'Main Account');
+        VALUES (3, 1, 'TFSA'), (4, 2, 'Main Account'), (5, 2, 'main account 2');
         CREATE TABLE investment_entries (
             id INTEGER PRIMARY KEY,
             account_id INTEGER NOT NULL REFERENCES investment_accounts(id) ON DELETE CASCADE,
@@ -1347,7 +1347,7 @@ mod tests {
 
         let scenario = Accounts::new(investments(&temp, 2).list_accounts().unwrap());
         let scenario_cash = scenario.default_id().unwrap();
-        assert_eq!(scenario.name(scenario_cash), "Main Account (Cash)");
+        assert_eq!(scenario.name(scenario_cash), "Main Account 3");
         assert_eq!(
             temp.store_for(2).list().unwrap()[0].account_id,
             scenario_cash
@@ -1377,7 +1377,7 @@ mod tests {
         assert_eq!(count("PRAGMA foreign_keys"), 1);
         assert_eq!(count("SELECT COUNT(*) FROM transactions"), 4);
         assert_eq!(count("SELECT COUNT(*) FROM budget_periods"), 3);
-        assert_eq!(count("SELECT COUNT(*) FROM investment_accounts"), 2);
+        assert_eq!(count("SELECT COUNT(*) FROM investment_accounts"), 3);
     }
 
     #[test]

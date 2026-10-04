@@ -812,6 +812,7 @@ impl App {
     /// Reload everything that is derived from the database after the active ledger or the
     /// database path changes. Leaves `mode` alone so callers control navigation.
     pub(crate) fn reload_working_set(&mut self) -> Result<(), Error> {
+        self.account_scope = None;
         self.reload_categories_from_store()?;
         self.reload_transactions_from_db()?;
         self.refresh_budget_years();
@@ -827,7 +828,6 @@ impl App {
             self.active_ledger_id = ledger_id;
         }
         self.clear_all_filter_fields();
-        self.account_scope = None;
         self.reload_working_set()
     }
 

@@ -330,15 +330,13 @@ impl SqliteDatabase {
                    datetime('now')
             FROM transactions t
             WHERE NOT EXISTS (SELECT 1 FROM ledgers l WHERE l.id = t.ledger_id);
+            ",
+        )
+        .map_err(fail)?;
+        Self::add_default_accounts(conn)?;
 
-            INSERT INTO accounts (ledger_id, name, kind, position, archived, class)
-            SELECT l.id,
-                   CASE WHEN EXISTS (
-                       SELECT 1 FROM accounts a WHERE a.ledger_id = l.id AND a.name = 'Main Account'
-                   ) THEN 'Main Account (Cash)' ELSE 'Main Account' END,
-                   '', -1, 0, 'Cash'
-            FROM ledgers l;
-
+        conn.execute_batch(
+            "
             CREATE TABLE categories_v6 (
                 id INTEGER PRIMARY KEY,
                 transaction_type TEXT NOT NULL
@@ -400,6 +398,39 @@ impl SqliteDatabase {
                 "Migration v6 changed row counts (transactions, categories, budgets) from {:?} to {:?}; nothing was changed.",
                 before, after
             )));
+        }
+        Ok(())
+    }
+
+    fn add_default_accounts(conn: &Connection) -> Result<()> {
+        let fail = |err: rusqlite::Error| Error::other(format!("Migration v6 failed: {}", err));
+        let ledgers: Vec<i64> = conn
+            .prepare("SELECT id FROM ledgers")
+            .and_then(|mut stmt| stmt.query_map([], |row| row.get(0))?.collect())
+            .map_err(fail)?;
+        for ledger_id in ledgers {
+            let taken = |name: &str| -> Result<bool> {
+                conn.query_row(
+                    "SELECT EXISTS (SELECT 1 FROM accounts WHERE ledger_id = ?1 AND name = ?2)",
+                    rusqlite::params![ledger_id, name],
+                    |row| row.get(0),
+                )
+                .map_err(fail)
+            };
+            let mut name = "Main Account".to_string();
+            let mut attempt = 1;
+            while taken(&name)? {
+                attempt += 1;
+                name = format!("Main Account {}", attempt);
+            }
+            conn.execute(
+                "
+                INSERT INTO accounts (ledger_id, name, kind, position, archived, class)
+                VALUES (?1, ?2, '', -1, 0, 'Cash')
+                ",
+                rusqlite::params![ledger_id, name],
+            )
+            .map_err(fail)?;
         }
         Ok(())
     }

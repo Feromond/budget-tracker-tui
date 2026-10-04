@@ -493,6 +493,8 @@ pub struct Account {
     pub class: AccountClass,
     /// Debt is stored as a negative balance.
     pub opening_balance: Decimal,
+    /// Transfers on or before this date are included in the opening position.
+    pub tracked_from: Option<NaiveDate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -502,6 +504,7 @@ pub struct AccountDraft {
     pub archived: bool,
     pub class: AccountClass,
     pub opening_balance: Decimal,
+    pub tracked_from: Option<NaiveDate>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -707,6 +710,10 @@ impl InvestmentRange {
     }
 }
 
+fn counts_transfer(account: &Account, date: NaiveDate) -> bool {
+    account.tracked_from.is_none_or(|from| date > from)
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct Portfolio {
     accounts: Vec<Account>,
@@ -734,9 +741,10 @@ impl Portfolio {
     pub fn new(mut accounts: Vec<Account>, mut entries: Vec<InvestmentEntry>) -> Self {
         accounts.sort_by(|a, b| a.position.cmp(&b.position).then_with(|| a.id.cmp(&b.id)));
         entries.retain(|entry| {
-            accounts
-                .iter()
-                .any(|account| account.id == entry.account_id)
+            accounts.iter().any(|account| {
+                account.id == entry.account_id
+                    && (entry.transaction_id.is_none() || counts_transfer(account, entry.date))
+            })
         });
         entries.sort_by(|a, b| {
             a.account_id
@@ -755,6 +763,11 @@ impl Portfolio {
 
     pub fn account(&self, id: i64) -> Option<&Account> {
         self.accounts.iter().find(|account| account.id == id)
+    }
+
+    pub fn counts_transfer(&self, account_id: i64, date: NaiveDate) -> bool {
+        self.account(account_id)
+            .is_some_and(|account| counts_transfer(account, date))
     }
 
     /// Match each manual entry at most once, by date, kind, and amount.

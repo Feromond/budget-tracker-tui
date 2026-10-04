@@ -264,11 +264,12 @@ impl App {
             return;
         };
 
-        let (id, name, kind, archived) = (
+        let (id, name, kind, archived, tracked_from) = (
             account.id,
             account.name.clone(),
             account.kind.clone(),
             account.archived,
+            account.tracked_from,
         );
 
         self.investment_account_fields.reset();
@@ -279,6 +280,9 @@ impl App {
         } else {
             STATUS_ACTIVE.to_string()
         };
+        self.investment_account_fields[InvestmentAccountField::OpeningDate] = tracked_from
+            .map(|date| date.format(DATE_FORMAT).to_string())
+            .unwrap_or_default();
         self.editing_investment_account_id = Some(id);
         self.investment_account_cursor = self.investment_account_fields.focused_value().len();
         self.mode = AppMode::InvestmentAccountEditor;
@@ -325,6 +329,24 @@ impl App {
             return;
         }
 
+        let opening = match self.parse_opening_position() {
+            Ok(opening) => opening,
+            Err(message) => {
+                self.set_status_message(format!("Error: {}", message), None);
+                return;
+            }
+        };
+        let tracked_from = match self.editing_investment_account_id {
+            None => opening.map(|(date, _, _)| date),
+            Some(_) => match self.parse_tracked_from() {
+                Ok(date) => date,
+                Err(message) => {
+                    self.set_status_message(format!("Error: {}", message), None);
+                    return;
+                }
+            },
+        };
+
         let draft = AccountDraft {
             name: name.clone(),
             kind: self.investment_account_fields[InvestmentAccountField::Kind]
@@ -334,14 +356,7 @@ impl App {
                 == STATUS_ARCHIVED,
             class: AccountClass::Investment,
             opening_balance: Decimal::ZERO,
-        };
-
-        let opening = match self.parse_opening_position() {
-            Ok(opening) => opening,
-            Err(message) => {
-                self.set_status_message(format!("Error: {}", message), None);
-                return;
-            }
+            tracked_from,
         };
 
         let store = self.account_store();
@@ -398,6 +413,16 @@ impl App {
             // A failed opening position needs to stay on screen.
             self.status_expiry = None;
         }
+    }
+
+    fn parse_tracked_from(&self) -> Result<Option<NaiveDate>, String> {
+        let date_str = self.investment_account_fields[InvestmentAccountField::OpeningDate].trim();
+        if date_str.is_empty() {
+            return Ok(None);
+        }
+        NaiveDate::parse_from_str(date_str, DATE_FORMAT)
+            .map(Some)
+            .map_err(|_| format!("Invalid Tracked From date (expected {})", DATE_FORMAT))
     }
 
     fn parse_opening_position(&self) -> Result<Option<(NaiveDate, Decimal, Decimal)>, String> {

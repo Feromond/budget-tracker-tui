@@ -170,8 +170,10 @@ impl LedgerStore for SqliteLedgerStore {
         // Accounts first so everything else can be remapped to the new ids.
         tx.execute(
             "
-            INSERT INTO accounts (ledger_id, name, kind, position, archived, class, opening_balance)
-            SELECT ?1, name, kind, position, archived, class, opening_balance
+            INSERT INTO accounts (
+                ledger_id, name, kind, position, archived, class, opening_balance, tracked_from
+            )
+            SELECT ?1, name, kind, position, archived, class, opening_balance, tracked_from
             FROM accounts
             WHERE ledger_id = ?2
             ",

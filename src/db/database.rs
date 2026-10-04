@@ -323,6 +323,11 @@ impl SqliteDatabase {
             ALTER TABLE accounts ADD COLUMN class TEXT NOT NULL DEFAULT 'Investment'
                 CHECK (class IN ('Cash', 'Credit', 'Investment'));
             ALTER TABLE accounts ADD COLUMN opening_balance TEXT NOT NULL DEFAULT '0';
+            ALTER TABLE accounts ADD COLUMN tracked_from TEXT NULL;
+            UPDATE accounts SET tracked_from = (
+                SELECT MIN(e.date) FROM investment_entries e
+                WHERE e.account_id = accounts.id AND e.note = 'Opening position'
+            );
 
             -- Rows whose ledger is gone get it back instead of being dropped.
             INSERT INTO ledgers (id, name, position, created_at)

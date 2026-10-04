@@ -146,7 +146,9 @@ impl App {
             .iter()
             .filter(|tx| tx.date <= today && uses_record(tx, record))
             .flat_map(|tx| InvestmentEntry::transfer_flows(&as_transfer(tx, other_id)))
-            .filter(|flow| flow.account_id == other_id)
+            .filter(|flow| {
+                flow.account_id == other_id && self.portfolio.counts_transfer(other_id, flow.date)
+            })
             .collect();
         conversion.duplicate_entries = self.portfolio.duplicate_entries(other_id, &flows);
         conversion.account_id = Some(other_id);

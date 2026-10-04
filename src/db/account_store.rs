@@ -47,6 +47,10 @@ impl SqliteAccountStore {
             archived: row.get::<_, i64>(4)? != 0,
             class: parse_class(5, &row.get::<_, String>(5)?)?,
             opening_balance: parse_decimal(6, &row.get::<_, String>(6)?)?,
+            tracked_from: row
+                .get::<_, Option<String>>(7)?
+                .map(|value| parse_date(7, &value))
+                .transpose()?,
         })
     }
 
@@ -126,7 +130,7 @@ impl AccountStore for SqliteAccountStore {
         let mut stmt = conn
             .prepare(
                 "
-                SELECT id, name, kind, position, archived, class, opening_balance
+                SELECT id, name, kind, position, archived, class, opening_balance, tracked_from
                 FROM accounts
                 WHERE ledger_id = ?1
                 ORDER BY position, id
@@ -173,8 +177,10 @@ impl AccountStore for SqliteAccountStore {
 
         conn.execute(
             "
-            INSERT INTO accounts (ledger_id, name, kind, position, archived, class, opening_balance)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            INSERT INTO accounts (
+                ledger_id, name, kind, position, archived, class, opening_balance, tracked_from
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
             ",
             params![
                 self.ledger_id,
@@ -183,7 +189,8 @@ impl AccountStore for SqliteAccountStore {
                 position,
                 draft.archived as i64,
                 draft.class.as_str(),
-                opening_balance(draft).to_string()
+                opening_balance(draft).to_string(),
+                tracked_from(draft)
             ],
         )
         .map_err(|err| name_conflict(err, &name, "create"))?;
@@ -210,8 +217,9 @@ impl AccountStore for SqliteAccountStore {
         conn.execute(
             "
             UPDATE accounts
-            SET name = ?1, kind = ?2, archived = ?3, class = ?4, opening_balance = ?5
-            WHERE id = ?6 AND ledger_id = ?7
+            SET name = ?1, kind = ?2, archived = ?3, class = ?4, opening_balance = ?5,
+                tracked_from = ?6
+            WHERE id = ?7 AND ledger_id = ?8
             ",
             params![
                 &name,
@@ -219,6 +227,7 @@ impl AccountStore for SqliteAccountStore {
                 draft.archived as i64,
                 draft.class.as_str(),
                 opening_balance(draft).to_string(),
+                tracked_from(draft),
                 id,
                 self.ledger_id
             ],
@@ -434,6 +443,15 @@ fn opening_balance(draft: &AccountDraft) -> Decimal {
     match draft.class {
         AccountClass::Investment => Decimal::ZERO,
         AccountClass::Cash | AccountClass::Credit => draft.opening_balance.normalize(),
+    }
+}
+
+fn tracked_from(draft: &AccountDraft) -> Option<String> {
+    match draft.class {
+        AccountClass::Investment => draft
+            .tracked_from
+            .map(|date| date.format(DATE_FORMAT).to_string()),
+        AccountClass::Cash | AccountClass::Credit => None,
     }
 }
 

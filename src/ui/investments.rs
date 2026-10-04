@@ -639,16 +639,15 @@ pub fn render_investment_account_editor(f: &mut Frame, app: &App, area: Rect) {
         if app.investment_opening_fields_active() {
             |_| None
         } else {
-            |field| {
-                matches!(
-                    field,
-                    crate::app::fields::InvestmentAccountField::OpeningValue
-                        | crate::app::fields::InvestmentAccountField::OpeningInvested
-                        | crate::app::fields::InvestmentAccountField::OpeningDate
-                )
-                .then_some(FieldOverride::Placeholder(
-                    "Edit the account's entries instead",
-                ))
+            |field| match field {
+                crate::app::fields::InvestmentAccountField::OpeningValue
+                | crate::app::fields::InvestmentAccountField::OpeningInvested => Some(
+                    FieldOverride::Placeholder("Edit the account's entries instead"),
+                ),
+                crate::app::fields::InvestmentAccountField::OpeningDate => {
+                    Some(FieldOverride::Label("Tracked From (YYYY-MM-DD)"))
+                }
+                _ => None,
             }
         },
     );

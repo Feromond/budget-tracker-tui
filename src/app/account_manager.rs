@@ -205,6 +205,10 @@ impl App {
                 AccountClass::Credit => -opening,
                 AccountClass::Cash | AccountClass::Investment => opening,
             },
+            tracked_from: self
+                .editing_account_id
+                .and_then(|id| self.accounts.get(id))
+                .and_then(|account| account.tracked_from),
         };
 
         let store = self.account_store();

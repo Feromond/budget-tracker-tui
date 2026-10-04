@@ -231,6 +231,9 @@ For example, a starting value of 1,000 with 800 contributed records 200 of exist
 valid too, for something you were given rather than bought. Leave both fields blank to start with
 no opening entries.
 
+The *As Of* date becomes *Tracked From*. Transfers on or before it are already included in the
+opening position. Edit the account to change the date, or clear it to count all transfers.
+
 Press `Enter` from a field other than Status to save the account. On Status, `Enter` toggles the status instead.
 
 ### Record a valuation
@@ -425,6 +428,9 @@ A transfer into an investment account counts as a contribution there, and one ou
 withdrawal, dated the same day. Future-dated transfers, including forecast occurrences, count once
 their date arrives. They're listed in the account's history marked with `⇄` and are read-only there,
 so edit or delete them from the main view.
+
+Transfers on or before an account's *Tracked From* date don't count again, so converting old
+contributions won't double-count money in the opening position.
 
 ### See transfers in the totals
 

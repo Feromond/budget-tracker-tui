@@ -727,6 +727,14 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                     "Optional, defaults to the starting value. Set it lower when part of the balance is already growth you earned before you started tracking.",
                 ),
             ),
+            KeyBindingInfo::new(
+                "As Of / Tracked From",
+                "Opening position date",
+                "Fields",
+                Some(
+                    "Transfers on or before this date are already included. Edit the account to change Tracked From, or clear it to count all transfers.",
+                ),
+            ),
             KeyBindingInfo::new("Enter", "Save account", "Actions", None),
             KeyBindingInfo::new("Esc", "Cancel", "System", None),
         ],

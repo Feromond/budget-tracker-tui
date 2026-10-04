@@ -545,6 +545,7 @@ mod tests {
                 archived: false,
                 class,
                 opening_balance: Decimal::ZERO,
+                tracked_from: None,
             })
             .unwrap()
     }
@@ -1106,6 +1107,7 @@ mod tests {
                 archived: false,
                 class: AccountClass::Investment,
                 opening_balance: Decimal::ZERO,
+                tracked_from: None,
             })
             .unwrap();
 
@@ -1180,6 +1182,7 @@ mod tests {
                 archived: false,
                 class: AccountClass::Investment,
                 opening_balance: Decimal::ZERO,
+                tracked_from: None,
             })
             .unwrap();
         source
@@ -1292,8 +1295,8 @@ mod tests {
             note TEXT NOT NULL DEFAULT '',
             transaction_id INTEGER NULL
         );
-        INSERT INTO investment_entries (account_id, date, entry_kind, amount)
-        VALUES (3, '2026-01-01', 'Valuation', '1000');
+        INSERT INTO investment_entries (account_id, date, entry_kind, amount, note)
+        VALUES (3, '2026-01-01', 'Valuation', '1000', 'Opening position');
         PRAGMA user_version = 5;
     ";
 
@@ -1333,7 +1336,9 @@ mod tests {
         );
         let cash = main.default_id().unwrap();
         assert_eq!(main.name(cash), "Main Account");
-        assert_eq!(main.named("TFSA").unwrap().class, AccountClass::Investment);
+        let tfsa = main.named("TFSA").unwrap();
+        assert_eq!(tfsa.class, AccountClass::Investment);
+        assert_eq!(tfsa.tracked_from, Some(day("2026-01-01")));
         let rows = temp.store().list().unwrap();
         assert_eq!(
             rows.iter()
@@ -1420,6 +1425,7 @@ mod tests {
                         archived: false,
                         class,
                         opening_balance: Decimal::from_str(opening).unwrap(),
+                        tracked_from: None,
                     },
                 )
                 .unwrap();
@@ -1445,7 +1451,24 @@ mod tests {
             ))
             .unwrap();
 
+        accounts
+            .update_account(
+                rrsp,
+                &AccountDraft {
+                    name: "RRSP".to_string(),
+                    kind: String::new(),
+                    archived: false,
+                    class: AccountClass::Investment,
+                    opening_balance: Decimal::ZERO,
+                    tracked_from: Some(day("2025-01-01")),
+                },
+            )
+            .unwrap();
+
         let store = temp.store();
+        store
+            .insert(&transfer("2024-11-01", "800", MAIN_ACCOUNT, rrsp))
+            .unwrap();
         store
             .insert(&transfer("2025-02-01", "500", MAIN_ACCOUNT, rrsp))
             .unwrap();
@@ -1482,6 +1505,7 @@ mod tests {
             archived: false,
             class: AccountClass::Cash,
             opening_balance: Decimal::ZERO,
+            tracked_from: None,
         };
         assert_eq!(
             accounts.update_account(rrsp, &retyped).unwrap_err().kind(),

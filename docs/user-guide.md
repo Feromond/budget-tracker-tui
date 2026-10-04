@@ -9,6 +9,8 @@ The companion to the [README](../README.md), with the longer explanations that d
 - [Set a monthly or category budget](#set-a-monthly-or-category-budget)
 - [Forecast upcoming recurring payments](#forecasting-ahead)
 - [Record an investment's latest value](#record-a-valuation)
+- [Track a credit card or savings account](#accounts)
+- [Pay off a card or contribute to an investment](#record-a-transfer)
 - [Create a what-if ledger](#create-a-what-if-ledger)
 - [Import or export transactions](#import-and-export)
 - [Find your database or back up your data](#data-storage-and-backups)
@@ -22,6 +24,8 @@ The companion to the [README](../README.md), with the longer explanations that d
 - [Summary views](#summary-views)
 - [Budgets](#budgets)
 - [Investments](#investments)
+- [Accounts](#accounts)
+- [Transfers](#transfers)
 - [The category catalog](#the-category-catalog)
 - [Ledgers](#ledgers)
 - [Import and export](#import-and-export)
@@ -48,8 +52,9 @@ These are the keys for the main view. Some do different things in other views.
 | Open recurring settings for the selected transaction | `r` |
 | Open monthly summary / category summary / budgets | `s` / `c` / `b` |
 | Open [investments](#investments) | `i` |
+| Show one [account](#accounts), or all of them | `Shift+A` |
 | Open [settings](#settings) | `o` |
-| Clear an active filter, or quit when no filter is active | `q` / `Esc` |
+| Clear an active filter, go back to all accounts, or quit when neither applies | `q` / `Esc` |
 
 ## Adding and editing transactions
 
@@ -57,7 +62,7 @@ These are the keys for the main view. Some do different things in other views.
 2. Fill in the fields, moving between them with `Tab` or `↑`/`↓`.
 3. Move to Date, Description, or Amount and press `Enter` to save. `Esc` cancels.
 
-New transactions start with today's date and type Expense. Enter a description and a positive amount; the type determines whether it's income or spending. Changing the type clears the category and subcategory.
+New transactions start with today's date and type Expense. Enter a description and a positive amount; the type determines whether it's income, spending, or a [transfer](#transfers). Changing the type clears the category and subcategory.
 
 `Ctrl+C` from the main view saves a copy immediately, dated today and without recurrence. Select the copy and press `e` if you need to change it.
 
@@ -65,7 +70,11 @@ New transactions start with today's date and type Expense. Enter a description a
 | --- | --- |
 | Date | `=` or `→` moves forward a day; `-` or `←` moves back; `Shift+←` / `Shift+→` jump by month |
 | Category and subcategory | `Enter` opens the picker. You can enable a searchable category picker in [settings](#settings) |
-| Income/expense type | `←` / `→` or `Enter` toggle the type instead of saving |
+| Type | `←` / `→` cycle through Expense, Income, and Transfer; `Enter` selects the next type |
+| Account and To Account | `Enter` opens the [account](#accounts) picker. To Account is only used by transfers |
+
+New transactions use the cash or credit account you're viewing. Otherwise, they use the ledger's
+first active cash or credit account, or its first archived one if none are active.
 
 ## Filtering
 
@@ -80,6 +89,8 @@ The advanced filter (`Ctrl+F`) combines date range, description, category, subca
 Use `YYYY-MM-DD` for dates and plain decimal amounts. Range endpoints are included; blank bounds leave that end unrestricted. Invalid date or amount bounds are currently ignored, so check the resulting rows.
 
 > **Current filter limitations:** `Esc` closes the form but keeps your edited criteria. They can take effect later, such as when you sort. After adding, editing, deleting, or copying transactions, reopen and apply the advanced filter before relying on its totals.
+
+The Type field is a `←`/`→` toggle that cycles through blank (everything), `Income`, `Expense`, and `Transfer`.
 
 The Recurring field is a `←`/`→` toggle that cycles through blank (everything), `Recurring`, and `One-Time`. Setting it to `Recurring` narrows the table and the summary totals to your recurring payments and their generated occurrences, so you can see what a cycle costs.
 
@@ -118,7 +129,7 @@ Forecast occurrences are derived in memory like every other generated occurrence
 
 **Open:** Press `s` from the main view.
 
-The monthly summary shows a daily spending chart and monthly net-balance bars. The grand-total bar shows income, expenses, and net for the selected year. `↑`/`↓` move between months; `←`/`→`, `[`/`]`, or `PageUp`/`PageDown` move between years. Press `m` to compare months' spending by day of month.
+The monthly summary shows a daily spending chart and monthly net-balance bars. The grand-total bar shows income, expenses, and net for the selected year, plus the [total transferred](#see-transfers-in-the-totals) when there are transfers. `↑`/`↓` move between months; `←`/`→`, `[`/`]`, or `PageUp`/`PageDown` move between years. Press `m` to compare months' spending by day of month.
 
 `c` toggles cumulative spending. In single-month mode, a budget set for that month also appears as a guideline spread evenly across its days. Multi-month mode doesn't show budget guidelines.
 
@@ -126,11 +137,11 @@ The monthly summary shows a daily spending chart and monthly net-balance bars. T
 
 **Open:** Press `c` from the main view.
 
-The category summary shows income, expenses, and net by month, with category/subcategory rows underneath. `↑`/`↓` select rows; `Enter` on a month heading expands or collapses it. `PageUp`/`PageDown` jump between months, and `←`/`→` or `[`/`]` change years.
+The category summary shows income, expenses, net, and [transfers](#transfers) by month, with category/subcategory rows underneath. Transfers aren't part of net. `↑`/`↓` select rows; `Enter` on a month heading expands or collapses it. `PageUp`/`PageDown` jump between months, and `←`/`→` or `[`/`]` change years.
 
-`1`-`6` (or `F1`-`F6`) sort by month, category, subcategory, income, expense, or net; pressing the same key again flips the direction, and the sorted column is marked in the header. Month sorts reorder the month rows, category and subcategory sorts reorder the rows inside each month, and the three amount sorts reorder both. The selected row stays under the cursor.
+`1`-`7` (or `F1`-`F7`) sort by month, category, subcategory, income, expense, net, or transfer; pressing the same key again flips the direction, and the sorted column is marked in the header. Month sorts reorder the month rows, category and subcategory sorts reorder the rows inside each month, and the amount sorts reorder both. The selected row stays under the cursor.
 
-`Enter` on a subcategory shows its transactions, with a count beside the name. They appear oldest first, or by amount when sorting by income, expense, or net. Amounts are dimmed because they are already included in the total above. Press `Enter` again to collapse it, or on a transaction to open it in the main list with your filters unchanged.
+`Enter` on a subcategory shows its transactions, with a count beside the name. They appear oldest first, or by amount when sorting by income, expense, net, or transfer. Amounts are dimmed because they are already included in the total above. Press `Enter` again to collapse it, or on a transaction to open it in the main list with your filters unchanged.
 
 `f` opens the main list with new filters based on the selected row. Month rows filter by month; other rows also use the category and subcategory. Names match partial text, ignoring case. A blank subcategory or an `Uncategorized` category leaves that field unrestricted, so the list can include more than the selected group. These filters also apply to summaries. Press `q` in the main list to clear them.
 
@@ -220,6 +231,9 @@ For example, a starting value of 1,000 with 800 contributed records 200 of exist
 valid too, for something you were given rather than bought. Leave both fields blank to start with
 no opening entries.
 
+The *As Of* date becomes *Tracked From*. Transfers on or before it are already included in the
+opening position. Edit the account to change the date, or clear it to count all transfers.
+
 Press `Enter` from a field other than Status to save the account. On Status, `Enter` toggles the status instead.
 
 ### Record a valuation
@@ -241,6 +255,10 @@ order you enter them.
 3. Use `←`/`→` in the *Entry* field to choose contribution or withdrawal.
 4. Enter the date and a positive amount. The entry type determines the direction.
 5. Press `Enter` from a field other than *Entry* to save. On *Entry*, `Enter` cycles the type instead.
+
+For money moving between accounts in this ledger, record a [transfer](#transfers) from the main
+view. It adds the contribution or withdrawal here automatically. Use manual entries for money
+coming from or going to an account you don't track, such as an employer match.
 
 Inside an account, you'll also find its full entry history, growth chart, and a year-by-year
 breakdown of net contributions (contributions minus withdrawals) against gains. `a`, `e` and `d` act on whatever you're
@@ -309,8 +327,144 @@ Its entries stay stored, but while hidden it is excluded from the table, totals,
 portfolio charts and returns. Press `A` (`Shift+A`) from the accounts list to include archived
 accounts again, both on screen and in the calculations. You can then edit one to unarchive it.
 
+Investment accounts also appear in Settings > [Accounts](#accounts). If a transaction uses an
+account, you'll need to archive it instead of deleting it.
+
 Investments belong to the ledger they were created in, the same way transactions do, and are carried
 along when you copy a ledger.
+
+## Accounts
+
+Every transaction belongs to an account, such as a bank account or credit card. Each new ledger
+starts with one cash account, *Main Account*. If you only need one account, the transaction form
+fills it in for you.
+
+Add more accounts to track a credit card, a savings account, or a loan alongside your bank account.
+Open Settings and select *Accounts*, or press `Shift+A` in the main view and pick *Manage accounts…*
+at the bottom of the list. `a` adds one, `e` or `Enter` edits the selected one, and `d`
+deletes it.
+
+| Class | For | Balance |
+| --- | --- | --- |
+| Cash | Chequing, savings, cash on hand | Starting balance plus its transactions |
+| Credit | Credit cards, lines of credit, loans | Starting debt, adjusted for income, spending, and transfers |
+| Investment | Brokerage, retirement, crypto | Latest [valuation](#investments), adjusted for later contributions and withdrawals |
+
+Income and expenses use cash or credit accounts. To move money between an investment account and
+another account in the ledger, use a [transfer](#transfers). Record valuations and any manual
+contributions or withdrawals in the [investments view](#investments).
+
+When you track a loan or card as a credit account, record repayments as transfers from your cash
+account. They reduce both your cash and the amount owed. Record interest and fees separately as
+expenses on the credit account, using *Debt Payments > Interest Charges* or *Fees & Penalties*.
+Those expenses add to the amount owed and count toward spending.
+
+For a card purchase, choose the card's account and the category for what you bought. The purchase
+counts as spending on that date. Paying the card later is a transfer, so it doesn't count twice.
+
+### Match your bank balance
+
+*Net* is income minus expenses. To compare a cash or credit account with its statement, use the
+account balance. It includes the starting balance and all income, expenses, and transfers through
+today. Future transactions and forecast occurrences don't count, and filters don't change it.
+
+Set *Starting Balance* in Settings > Accounts. For a credit account, enter the amount you owed as a
+positive number in *Starting Amount Owed*. Leave *As Of* blank to count all recorded transactions.
+
+To start from a statement, enter its date in *As Of* and use its closing balance. Earlier transactions,
+including that day's, won't affect the balance but still count in other totals. You can update the
+amount and date whenever you need to match a newer statement.
+
+Balances appear in the Accounts list and in the grand-total bar when you're viewing one account.
+The bar labels them *Balance* for cash, *Owed* for debt, and *Value* for investments. A credit account
+with a positive balance shows *Credit* instead of *Owed*.
+
+If you previously recorded your starting amount as an income transaction, it still counts toward the
+balance. Moving it into the starting balance and deleting that transaction stops it counting as
+income.
+
+### Look at one account
+
+Once a ledger has a second account, the transaction list's title shows which you're looking at,
+starting with *All accounts*. `Shift+A` opens a list of the ledger's accounts; pick one with
+`↑`/`↓` or by typing its name and press `Enter`, or pick *All accounts* to go back. *Manage
+accounts…* at the bottom opens the account list, and `q` there brings you back to the main view.
+
+A card's view shows its purchases and payments. A transfer appears under both accounts it uses.
+Totals and summaries follow the account in view, along with any [filters](#filtering). New
+transactions start in that account if it's cash or credit.
+
+### Change or remove an account
+
+An account's class can't change while it has transactions or investment entries. If a transaction
+uses the account, archive it instead of deleting it. Archived accounts stay in the account filter
+so you can view their history. Transaction pickers normally hide them, but keep an archived account
+visible when it's already selected in the form. A ledger always keeps at least one cash or credit
+account, which may be archived.
+
+## Transfers
+
+A transfer moves money between accounts you track, such as a card payment, a savings deposit, or an
+investment contribution. Transfers stay out of budgets and income and expense totals. You can give
+them categories to track what each transfer was for.
+
+### Record a transfer
+
+1. Press `a` from the main view.
+2. On *Type*, use `←`/`→` to choose Transfer.
+3. Pick a category if you like, such as `Debt Payments / Credit Card Payments`. Transfers use their
+   own categories, of type Transfer in the [catalog](#the-category-catalog). The defaults cover
+   *Savings & Investments*, *Debt Payments*, *Account Transfers* (moving money between your own
+   accounts, cash withdrawals and deposits), and *Borrowing* (loan proceeds, cash advances, balance
+   transfers). You can add more like any other category.
+4. Choose the source in *From Account* and the destination in *To Account*. They must be different
+   accounts. Add accounts in Settings > Accounts if needed.
+5. Fill in the rest and save as usual.
+
+Transfers appear in the main list with a `⇄` before the description and the amount in magenta. Use
+[`Shift+A`](#look-at-one-account) to see which account a transfer came from or went to. To contribute
+or pay on a schedule, make the transfer [recurring](#recurring-transactions) with `r`, like any other
+transaction; it then shows both markers, like `⇄ ⟲* Contribution`.
+
+### See transfers on an investment
+
+A transfer into an investment account counts as a contribution there, and one out of it counts as a
+withdrawal, dated the same day. Future-dated transfers, including forecast occurrences, count once
+their date arrives. They're listed in the account's history marked with `⇄` and are read-only there,
+so edit or delete them from the main view.
+
+Transfers on or before an account's *Tracked From* date don't count again, so converting old
+contributions won't double-count money in the opening position.
+
+### See transfers in the totals
+
+When the current view includes transfers, the grand-total bar adds *Transferred*, the total
+moved between accounts. *Net* stays income minus expenses. The [category summary](#category-summary)
+has a Transfer column showing what moved under each category.
+Set *Type* to `Transfer` in the [advanced filter](#advanced-filter) to list only transfers.
+
+### Convert earlier transactions
+
+If you've been logging savings or card payments as expenses, you can turn them into transfers:
+
+1. Open the [category catalog](#the-category-catalog) and select the category, like
+   `Savings & Investments / Retirement`.
+2. Press `t` and pick the account the money went to.
+3. Check the confirmation and press `y`.
+
+This converts transactions in the open ledger that match the selected type, category, and
+subcategory, including recurring transactions. Expenses become transfers to the account you picked;
+income becomes transfers from it. The account must be different from the one each transaction
+already uses. The converted transactions keep their category and subcategory, and a matching
+Transfer entry is added to the shared catalog. Transactions in other ledgers stay unchanged.
+
+If the destination is an investment account, matching manual contributions through today are
+removed to avoid counting them twice. For income converted to transfers from an investment account,
+the same applies to manual withdrawals. Entries must match the date, amount, and direction, and each
+entry is matched only once. The confirmation shows how many will be removed.
+
+The original category stays in the catalog, and its budget no longer counts the converted
+transactions. You can delete the old category with `d` once no ledger needs it.
 
 ## The category catalog
 
@@ -319,6 +473,7 @@ The catalog holds your categories and subcategories. Open it from Settings (*Man
 - `↑`/`↓` move between entries, `PageUp`/`PageDown` jump by page, `Ctrl+↑`/`Ctrl+↓` jump to the first/last entry
 - `f` filters the catalog as you type; while typing, `Enter` keeps it applied, and `Esc` or `Ctrl+R` clears it
 - `a` adds a category, `e` or `Enter` edits the selected one, `d` deletes it
+- `t` converts the selected category's transactions in the open ledger into [transfers](#convert-earlier-transactions)
 - `b` sets the selected category's budget, using the same popup as the budget view. The same popup
   is reachable from the *Budget* row inside the editor, which saves the category first so a brand
   new one has something to attach a budget to
@@ -341,13 +496,13 @@ Open the list from Settings (*Ledger*, which shows the ledger currently open).
 - `↑`/`↓` move between ledgers; the open one is marked with a dot
 - `Enter` switches to the selected ledger and returns to settings
 - `a` adds an empty ledger, `e` renames the selected one
-- `Ctrl+C` copies the selected ledger's transactions, budget history, investment accounts, and investment entries into a new ledger. Handy for trying a
+- `Ctrl+C` copies the selected ledger's transactions, budget history, accounts, and investment entries into a new ledger. Transactions use the copied accounts. Handy for trying a
   forecast or a what-if against real numbers without touching the original. You're offered a name
   like `Main (copy)`, which you can edit before saving.
 - `d` deletes the selected ledger after a confirmation that names it and lists its transaction count, plus its investment-account count if any. The last remaining ledger can't be deleted.
 - `q`/`Esc` returns to settings
 
-> **Deleting a ledger:** This permanently deletes its transactions, budget history, investment accounts, and investment entries. Check the ledger name and counts before confirming with `y`.
+> **Deleting a ledger:** This permanently deletes its transactions, budget history, accounts, and investment entries. Check the ledger name and counts before confirming with `y`.
 
 The name of the open ledger is shown in the transaction list's title. The transaction list,
 filters, summary views, budget view, and CSV import/export all apply to the open ledger only.
@@ -379,9 +534,9 @@ The copy has its own transactions and budgets, but still shares the category cat
 
 The path prompt is a text field, not a file browser. `Ctrl+U` clears it, `Ctrl+D` restores the default path, and `Esc` returns to Settings. Use a full path rather than `~` or environment variables, which aren't expanded.
 
-Import adds rows unless their date, description, amount, type, category, and subcategory match a transaction already present. Matching rows are skipped, not updated, even if recurrence settings differ. This also skips identical rows within the file. Amounts such as `10` and `10.00` count as equal.
+Import adds rows unless their date, description, amount, type, category, subcategory, and accounts match a transaction already present. Matching rows are skipped, not updated, even if recurrence settings differ. This also skips identical rows within the file. Amounts such as `10` and `10.00` count as equal.
 
-Generated recurring rows are skipped after parsing, since the app generates them from the original transactions. A parsing error stops the import before any rows are added. A successful import clears the filters and returns to the main view.
+Generated recurring rows are skipped after parsing, since the app generates them from the original transactions. A parsing error or an invalid account on a row being imported stops the import before any rows are added. A successful import clears the text and advanced filters and returns to the main view. The account you're viewing stays selected.
 
 ### Export transactions
 
@@ -393,13 +548,13 @@ The export contains all transactions in the open ledger, regardless of the activ
 
 > **Existing files are overwritten:** Export replaces the destination file without asking. Use a new `.csv` filename unless you mean to replace an earlier export.
 
-> **A CSV isn't a full backup:** It gives you a copy of your transactions, but leaves out investments, the category catalog, and budget history. To keep a copy of everything, see [Data storage and backups](#data-storage-and-backups).
+> **A CSV isn't a full backup:** It includes transactions and their account names, but leaves out account settings and opening balances, manual investment entries, the category catalog, and budget history. To keep a copy of everything, see [Data storage and backups](#data-storage-and-backups).
 
 ## Settings
 
 Press `o` to open settings. Use `Tab` or `↑`/`↓` to move between settings and type into number or path fields. For toggles, `←` sets No and `→` sets Yes.
 
-Press `Enter` on a regular setting to save all preferences and return to the main view. On Ledger, Manage Categories, Import, Export, or Manage Backups, it opens that action instead. `Esc` discards unsaved preference changes. Saving settings clears transaction filters.
+Press `Enter` on a regular setting to save all preferences and return to the main view. On Ledger, Accounts, Manage Categories, Import, Export, or Manage Backups, it opens that action instead. `Esc` discards unsaved preference changes. Saving settings clears transaction filters.
 
 The menu is grouped into sections:
 
@@ -407,6 +562,7 @@ The menu is grouped into sections:
 
 - *Database Path*: where the SQLite database lives (see [Data storage and backups](#data-storage-and-backups)).
 - *Ledger*: shows the ledger currently open; opens the [ledger list](#ledgers) to switch or manage them.
+- *Accounts*: the open ledger's cash, credit, and investment [accounts](#accounts).
 - *Manage Categories*: opens the [category catalog](#the-category-catalog).
 - *Import Transactions (CSV)*: adds transactions to the open ledger, skipping rows with matching core fields. See [Import transactions](#import-transactions).
 - *Export Transactions (CSV)*: writes the open ledger's transactions to a CSV file for transfer or use elsewhere; see [Import and export](#import-and-export).
@@ -478,7 +634,7 @@ If a startup backup fails, the app shows an error and continues opening the data
 
 ## Data storage and backups
 
-Transactions, categories, and investments are stored together in a local SQLite database (`budget.db`). On first run with a new database, it's seeded with the default category catalog and a ledger named `Main`. Default locations:
+Transactions, accounts, categories, and investment entries are stored together in a local SQLite database (`budget.db`). A new database starts with the default categories and a ledger named `Main`. Updates add new default categories without restoring older ones you've changed or deleted. Default locations:
 
 - **Linux:** `$XDG_DATA_HOME/BudgetTracker/budget.db` (usually `~/.local/share/BudgetTracker/budget.db`)
 - **macOS:** `~/Library/Application Support/BudgetTracker/budget.db`
@@ -532,11 +688,14 @@ date,description,amount,transaction_type,category,subcategory
 Use these header names without spaces around the commas. Date, description, amount, and type are required. If the category column is omitted, it defaults to `Uncategorized`; an omitted subcategory defaults to empty.
 
 - **Date:** accepts `YYYY-MM-DD`, `YYYY/MM/DD`, `DD/MM/YYYY`, or `DD-MM-YYYY`
-- **Transaction type:** `Income` or `Expense`, case-insensitive; `i`/`e` also work
+- **Transaction type:** `Income`, `Expense`, or `Transfer`, case-insensitive; `i`/`e`/`t` also work
 - **Category/Subcategory:** use names from the category catalog where possible. Import doesn't add catalog entries or enforce the transaction form's validation rules.
+- **Account/To account:** `account` and `to_account` use [account names](#accounts) from the open ledger, ignoring case and surrounding spaces. A blank or missing `account` uses the first active cash or credit account, or the first archived one if none are active. Transfers require a different account in `to_account`; income and expenses ignore that column and require a cash or credit account. Create any named accounts before importing.
 
-Exports also include `is_recurring`, `recurrence_frequency`, `recurrence_end_date`, and
-`is_generated_from_recurring`. You can omit these columns when importing one-time transactions.
+Exports also include `is_recurring`, `recurrence_frequency`, `recurrence_end_date`,
+`is_generated_from_recurring`, `account`, and `to_account`. You can omit the recurrence columns for
+one-time transactions. You can omit `account` to use the default account, and `to_account` for income
+or expenses.
 If boolean columns are present, use `true` or `false`, not blank cells.
 
 For recurring transactions, set `is_recurring` to `true` and use one of these exact frequency values:

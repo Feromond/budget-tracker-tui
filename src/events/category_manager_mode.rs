@@ -9,6 +9,8 @@ pub fn handle_category_manager_mode(app: &mut App, key_event: KeyEvent) {
         AppMode::CategoryCatalogFilter => handle_category_filter(app, key_event),
         AppMode::CategoryEditor => handle_category_editor(app, key_event),
         AppMode::ConfirmCategoryDelete => handle_confirm_category_delete(app, key_event),
+        AppMode::SelectingConversionAccount => handle_conversion_account(app, key_event),
+        AppMode::ConfirmCategoryConversion => handle_confirm_category_conversion(app, key_event),
         _ => {}
     }
 }
@@ -35,6 +37,7 @@ fn handle_category_catalog(app: &mut App, key_event: KeyEvent) {
         }
         (KeyCode::Char('d'), KeyModifiers::NONE) => app.prepare_delete_category(),
         (KeyCode::Char('b'), KeyModifiers::NONE) => app.start_editing_catalog_budget(),
+        (KeyCode::Char('t'), KeyModifiers::NONE) => app.start_category_conversion(),
         (KeyCode::Char('1'), _) | (KeyCode::F(1), _) => {
             app.set_category_sort_column(CategorySortColumn::Type)
         }
@@ -142,6 +145,25 @@ fn handle_confirm_category_delete(app: &mut App, key_event: KeyEvent) {
     match key_event.code {
         KeyCode::Char('y') | KeyCode::Char('Y') => app.confirm_delete_category(),
         KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => app.cancel_delete_category(),
+        _ => {}
+    }
+}
+
+fn handle_conversion_account(app: &mut App, key_event: KeyEvent) {
+    match key_event.code {
+        KeyCode::Esc => app.cancel_category_conversion(),
+        KeyCode::Enter => app.choose_conversion_account(),
+        KeyCode::Down => app.select_next_list_item(),
+        KeyCode::Up => app.select_previous_list_item(),
+        KeyCode::Char(c) => app.handle_type_to_select(c),
+        _ => {}
+    }
+}
+
+fn handle_confirm_category_conversion(app: &mut App, key_event: KeyEvent) {
+    match key_event.code {
+        KeyCode::Char('y') | KeyCode::Char('Y') => app.confirm_category_conversion(),
+        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => app.cancel_category_conversion(),
         _ => {}
     }
 }

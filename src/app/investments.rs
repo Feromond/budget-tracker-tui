@@ -1,17 +1,17 @@
 use crate::app::fields::{InvestmentAccountField, InvestmentEntryField};
 use crate::app::state::{App, AppMode, InvestmentDeleteTarget};
-use crate::db::investment_store::InvestmentStore;
+use crate::db::account_store::AccountStore;
 use crate::model::{
-    DATE_FORMAT, InvestmentAccountDraft, InvestmentEntryDraft, InvestmentEntryKind,
-    InvestmentPosition, InvestmentRange,
+    AccountClass, AccountDraft, DATE_FORMAT, InvestmentEntry, InvestmentEntryDraft,
+    InvestmentEntryKind, InvestmentPosition, InvestmentRange,
 };
 use chrono::{Duration, NaiveDate};
 use rust_decimal::Decimal;
 
 pub const STALE_VALUATION_DAYS: i64 = 30;
 
-const STATUS_ACTIVE: &str = "Active";
-const STATUS_ARCHIVED: &str = "Archived";
+pub(crate) const STATUS_ACTIVE: &str = "Active";
+pub(crate) const STATUS_ARCHIVED: &str = "Archived";
 
 impl App {
     pub(crate) fn today(&self) -> NaiveDate {
@@ -19,7 +19,7 @@ impl App {
     }
 
     pub(crate) fn enter_investments_mode(&mut self) {
-        if let Err(err) = self.reload_portfolio() {
+        if let Err(err) = self.reload_accounts() {
             self.set_status_message(format!("Error loading investments: {}", err), None);
             return;
         }
@@ -181,7 +181,7 @@ impl App {
         self.investment_detail_id = Some(id);
         self.mode = AppMode::InvestmentDetail;
         self.clamp_investment_range();
-        let has_entries = !self.detail_entry_ids().is_empty();
+        let has_entries = !self.detail_entries().is_empty();
         self.investment_entry_table_state
             .select(has_entries.then_some(0));
         self.clear_status_message();
@@ -195,28 +195,32 @@ impl App {
     }
 
     /// Newest first, matching the table.
-    pub(crate) fn detail_entry_ids(&self) -> Vec<i64> {
+    pub(crate) fn detail_entries(&self) -> Vec<&InvestmentEntry> {
         let Some(account_id) = self.investment_detail_id else {
             return Vec::new();
         };
-        let mut ids: Vec<i64> = self
-            .portfolio
-            .entries_for(account_id)
-            .map(|entry| entry.id)
-            .collect();
-        ids.reverse();
-        ids
+        let mut entries: Vec<&InvestmentEntry> = self.portfolio.entries_for(account_id).collect();
+        entries.reverse();
+        entries
     }
 
-    pub(crate) fn selected_investment_entry_id(&self) -> Option<i64> {
-        let ids = self.detail_entry_ids();
-        self.investment_entry_table_state
+    fn selected_own_entry(&mut self) -> Option<InvestmentEntry> {
+        let entry = self
+            .investment_entry_table_state
             .selected()
-            .and_then(|index| ids.get(index).copied())
+            .and_then(|index| self.detail_entries().get(index).copied().cloned())?;
+        if entry.transaction_id.is_some() {
+            self.set_status_message(
+                "This comes from a transfer in the ledger. Change it from the main view.",
+                Some(Duration::seconds(4)),
+            );
+            return None;
+        }
+        Some(entry)
     }
 
     pub(crate) fn next_investment_entry(&mut self) {
-        let len = self.detail_entry_ids().len();
+        let len = self.detail_entries().len();
         if len == 0 {
             return;
         }
@@ -228,7 +232,7 @@ impl App {
     }
 
     pub(crate) fn previous_investment_entry(&mut self) {
-        let len = self.detail_entry_ids().len();
+        let len = self.detail_entries().len();
         if len == 0 {
             return;
         }
@@ -260,11 +264,12 @@ impl App {
             return;
         };
 
-        let (id, name, kind, archived) = (
+        let (id, name, kind, archived, tracked_from) = (
             account.id,
             account.name.clone(),
             account.kind.clone(),
             account.archived,
+            account.tracked_from,
         );
 
         self.investment_account_fields.reset();
@@ -275,6 +280,9 @@ impl App {
         } else {
             STATUS_ACTIVE.to_string()
         };
+        self.investment_account_fields[InvestmentAccountField::OpeningDate] = tracked_from
+            .map(|date| date.format(DATE_FORMAT).to_string())
+            .unwrap_or_default();
         self.editing_investment_account_id = Some(id);
         self.investment_account_cursor = self.investment_account_fields.focused_value().len();
         self.mode = AppMode::InvestmentAccountEditor;
@@ -321,15 +329,6 @@ impl App {
             return;
         }
 
-        let draft = InvestmentAccountDraft {
-            name: name.clone(),
-            kind: self.investment_account_fields[InvestmentAccountField::Kind]
-                .trim()
-                .to_string(),
-            archived: self.investment_account_fields[InvestmentAccountField::Status]
-                == STATUS_ARCHIVED,
-        };
-
         let opening = match self.parse_opening_position() {
             Ok(opening) => opening,
             Err(message) => {
@@ -337,8 +336,30 @@ impl App {
                 return;
             }
         };
+        let tracked_from = match self.editing_investment_account_id {
+            None => opening.map(|(date, _, _)| date),
+            Some(_) => match self.parse_tracked_from() {
+                Ok(date) => date,
+                Err(message) => {
+                    self.set_status_message(format!("Error: {}", message), None);
+                    return;
+                }
+            },
+        };
 
-        let store = self.investment_store();
+        let draft = AccountDraft {
+            name: name.clone(),
+            kind: self.investment_account_fields[InvestmentAccountField::Kind]
+                .trim()
+                .to_string(),
+            archived: self.investment_account_fields[InvestmentAccountField::Status]
+                == STATUS_ARCHIVED,
+            class: AccountClass::Investment,
+            opening_balance: Decimal::ZERO,
+            tracked_from,
+        };
+
+        let store = self.account_store();
         let saved_id = match self.editing_investment_account_id {
             Some(id) => store.update_account(id, &draft).map(|_| id),
             None => store.create_account(&draft),
@@ -392,6 +413,16 @@ impl App {
             // A failed opening position needs to stay on screen.
             self.status_expiry = None;
         }
+    }
+
+    fn parse_tracked_from(&self) -> Result<Option<NaiveDate>, String> {
+        let date_str = self.investment_account_fields[InvestmentAccountField::OpeningDate].trim();
+        if date_str.is_empty() {
+            return Ok(None);
+        }
+        NaiveDate::parse_from_str(date_str, DATE_FORMAT)
+            .map(Some)
+            .map_err(|_| format!("Invalid Tracked From date (expected {})", DATE_FORMAT))
     }
 
     fn parse_opening_position(&self) -> Result<Option<(NaiveDate, Decimal, Decimal)>, String> {
@@ -452,10 +483,7 @@ impl App {
     }
 
     pub(crate) fn start_editing_investment_entry(&mut self) {
-        let Some(entry) = self.selected_investment_entry_id().and_then(|id| {
-            self.investment_detail_id
-                .and_then(|account| self.portfolio.entries_for(account).find(|e| e.id == id))
-        }) else {
+        let Some(entry) = self.selected_own_entry() else {
             return;
         };
 
@@ -563,7 +591,7 @@ impl App {
                 .to_string(),
         };
 
-        let store = self.investment_store();
+        let store = self.account_store();
         let result = match self.editing_investment_entry_id {
             Some(id) => store.update_entry(id, &draft).map(|_| id),
             None => store.save_entry(&draft),
@@ -594,8 +622,8 @@ impl App {
     pub(crate) fn prepare_delete_investment(&mut self) {
         let target = match self.mode {
             AppMode::InvestmentDetail => self
-                .selected_investment_entry_id()
-                .map(InvestmentDeleteTarget::Entry),
+                .selected_own_entry()
+                .map(|entry| InvestmentDeleteTarget::Entry(entry.id)),
             _ => self
                 .selected_investment_account_id()
                 .map(InvestmentDeleteTarget::Account),
@@ -604,6 +632,21 @@ impl App {
         let Some(target) = target else {
             return;
         };
+
+        if let InvestmentDeleteTarget::Account(id) = target {
+            let transfers = self.account_transaction_count(id);
+            if transfers > 0 {
+                self.set_status_message(
+                    format!(
+                        "This account has {} transfer{} in the ledger. Archive it instead (e).",
+                        transfers,
+                        if transfers == 1 { "" } else { "s" }
+                    ),
+                    None,
+                );
+                return;
+            }
+        }
 
         self.investment_delete_prompt = match target {
             InvestmentDeleteTarget::Account(id) => {
@@ -638,7 +681,7 @@ impl App {
             return;
         };
 
-        let store = self.investment_store();
+        let store = self.account_store();
         let (result, message) = match target {
             InvestmentDeleteTarget::Account(id) => {
                 (store.delete_account(id), "Account deleted.".to_string())
@@ -675,7 +718,7 @@ impl App {
     }
 
     fn finish_investment_write(&mut self, select: Option<i64>, message: String) {
-        if let Err(err) = self.reload_portfolio() {
+        if let Err(err) = self.reload_accounts() {
             self.set_status_message(format!("Saved, but reloading failed: {}", err), None);
             return;
         }
@@ -688,7 +731,7 @@ impl App {
         self.clamp_investment_selection();
         self.clamp_investment_range();
 
-        let entries = self.detail_entry_ids().len();
+        let entries = self.detail_entries().len();
         if entries == 0 {
             self.investment_entry_table_state.select(None);
         } else {

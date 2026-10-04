@@ -2,8 +2,13 @@ use crate::app::fields::{FieldKey, FieldKind, FieldSet};
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-/// A field that doesn't apply right now, dimmed in place of its value.
-pub type Placeholder<K> = fn(K) -> Option<&'static str>;
+#[derive(Clone, Copy)]
+pub enum FieldOverride {
+    Placeholder(&'static str),
+    Label(&'static str),
+}
+
+pub type Overrides<K> = fn(K) -> Option<FieldOverride>;
 
 pub fn render_field_form<K: FieldKey, const N: usize>(
     f: &mut Frame,
@@ -12,22 +17,26 @@ pub fn render_field_form<K: FieldKey, const N: usize>(
     area: Rect,
     title: &str,
     bottom_hint: Option<&str>,
-    placeholder: Placeholder<K>,
+    overrides: Overrides<K>,
 ) {
     let focused_field = fields.focused();
     let input_widgets: Vec<_> = fields
         .iter()
         .map(|(field, text)| {
-            let box_title = format!("{} {}", field.label(), field.hint())
-                .trim_end()
-                .to_string();
-            let content = match placeholder(field) {
-                Some(hint) => Span::styled(hint, Style::default().fg(Color::DarkGray)),
-                None if field.kind() == FieldKind::Toggle => Span::styled(
+            let label = match overrides(field) {
+                Some(FieldOverride::Label(label)) => label,
+                _ => field.label(),
+            };
+            let box_title = format!("{} {}", label, field.hint()).trim_end().to_string();
+            let content = match overrides(field) {
+                Some(FieldOverride::Placeholder(hint)) => {
+                    Span::styled(hint, Style::default().fg(Color::DarkGray))
+                }
+                _ if field.kind() == FieldKind::Toggle => Span::styled(
                     format!(" < {} > ", text),
                     Style::default().fg(Color::White).bold(),
                 ),
-                None => Span::raw(text.as_str()),
+                _ => Span::raw(text.as_str()),
             };
 
             Paragraph::new(content)
@@ -86,7 +95,12 @@ pub fn render_field_form<K: FieldKey, const N: usize>(
     }
     f.render_widget(form_block, area);
 
-    if focused_field.kind().is_editable() && placeholder(focused_field).is_none() {
+    if focused_field.kind().is_editable()
+        && !matches!(
+            overrides(focused_field),
+            Some(FieldOverride::Placeholder(_))
+        )
+    {
         let field_index = focused_field.index();
         let text = &fields[focused_field];
         let cursor_byte_idx = cursor.min(text.len());

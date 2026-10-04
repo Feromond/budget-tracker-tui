@@ -1,6 +1,8 @@
+pub mod account_manager;
 pub mod add_edit;
 pub mod backup_manager;
 pub mod budget;
+pub mod category_conversion;
 pub mod category_manager;
 pub mod category_select;
 pub mod fields;

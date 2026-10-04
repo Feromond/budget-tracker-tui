@@ -1,3 +1,4 @@
+use crate::model::{Transaction, TransactionType};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Color;
 use ratatui::widgets::{ListState, TableState};
@@ -16,6 +17,22 @@ pub fn clamp_table_scroll(state: &mut TableState, row_count: usize, area: Rect) 
 
 pub fn clamp_list_scroll(state: &mut ListState, item_count: usize, area: Rect) {
     *state.offset_mut() = clamped_offset(state.offset(), item_count, area);
+}
+
+pub const TRANSFER_COLOR: Color = Color::LightMagenta;
+
+pub fn marked_description(tx: &Transaction) -> String {
+    let mut text = String::new();
+    if tx.transaction_type == TransactionType::Transfer {
+        text.push_str("⇄ ");
+    }
+    if tx.is_generated_from_recurring {
+        text.push_str("⟲ ");
+    } else if tx.is_recurring {
+        text.push_str("⟲* ");
+    }
+    text.push_str(&tx.description);
+    text
 }
 
 pub fn format_amount(amount: &Decimal) -> String {

@@ -40,6 +40,18 @@ impl App {
             SettingType::Action,
             "Switch between transaction ledgers, or add, rename, and delete them.",
         );
+        let account_count = self.accounts.all().len();
+        self.settings_state.add_setting(
+            SettingKey::ManageAccounts,
+            "Accounts",
+            format!(
+                "{} account{}",
+                account_count,
+                if account_count == 1 { "" } else { "s" }
+            ),
+            SettingType::Action,
+            "Add, rename, archive, or delete this ledger's accounts: cash, credit, and investment.",
+        );
         self.settings_state.add_setting(
             SettingKey::ManageCategories,
             "Manage Categories",
@@ -413,6 +425,7 @@ impl App {
 
         match selected_key {
             Some(SettingKey::ManageLedgers) => self.open_ledger_manager(),
+            Some(SettingKey::ManageAccounts) => self.open_account_manager(AppMode::Settings),
             Some(SettingKey::ManageCategories) => self.open_category_catalog(AppMode::Settings),
             Some(SettingKey::ImportTransactions) => {
                 self.open_transaction_io(AppMode::ImportTransactions)

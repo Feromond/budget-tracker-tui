@@ -53,9 +53,7 @@ fn handle_account_editor(app: &mut App, key_event: KeyEvent) {
     let inert = !app.investment_opening_fields_active()
         && matches!(
             focused,
-            InvestmentAccountField::OpeningValue
-                | InvestmentAccountField::OpeningInvested
-                | InvestmentAccountField::OpeningDate
+            InvestmentAccountField::OpeningValue | InvestmentAccountField::OpeningInvested
         );
 
     match (key_event.code, key_event.modifiers) {

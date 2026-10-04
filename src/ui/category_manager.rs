@@ -1,7 +1,7 @@
 use crate::app::fields::CategoryEditField;
 use crate::app::state::App;
-use crate::model::{CategorySortColumn, SortOrder};
-use crate::ui::form::render_field_form;
+use crate::model::{CategorySortColumn, SortOrder, TransactionType};
+use crate::ui::form::{FieldOverride, render_field_form};
 use crate::ui::helpers::clamp_table_scroll;
 use ratatui::prelude::*;
 use ratatui::widgets::*;
@@ -137,8 +137,8 @@ pub fn render_category_filter_input(f: &mut Frame, app: &App, area: Rect) {
 }
 
 pub fn render_category_editor(f: &mut Frame, app: &App, area: Rect) {
-    let income_category =
-        app.category_edit_fields[CategoryEditField::TransactionType].eq_ignore_ascii_case("income");
+    let expense_category = app.category_edit_fields[CategoryEditField::TransactionType]
+        .eq_ignore_ascii_case(TransactionType::Expense.as_str());
     let title = if app.editing_category_id.is_some() {
         "Edit Category"
     } else {
@@ -153,8 +153,11 @@ pub fn render_category_editor(f: &mut Frame, app: &App, area: Rect) {
         title,
         Some(" [Esc] Cancel, [Enter] Toggle/Save "),
         // Budgets are keyed on expense categories, so there is nothing to set here.
-        if income_category {
-            |field| (field == CategoryEditField::Budget).then_some("Expense categories only")
+        if !expense_category {
+            |field| {
+                (field == CategoryEditField::Budget)
+                    .then_some(FieldOverride::Placeholder("Expense categories only"))
+            }
         } else {
             |_| None
         },

@@ -267,13 +267,12 @@ impl App {
             return;
         }
 
-        let switching_to_income = !self.category_edit_fields[CategoryEditField::TransactionType]
-            .eq_ignore_ascii_case("income");
-        self.category_edit_fields[CategoryEditField::TransactionType] = if switching_to_income {
-            TransactionType::Income.to_string()
-        } else {
-            TransactionType::Expense.to_string()
-        };
+        let current = TransactionType::try_from(
+            self.category_edit_fields[CategoryEditField::TransactionType].as_str(),
+        )
+        .unwrap_or(TransactionType::Expense);
+        self.category_edit_fields[CategoryEditField::TransactionType] =
+            crate::app::util::cycle(&TransactionType::all(), current, true).to_string();
         self.category_edit_cursor =
             self.category_edit_fields[CategoryEditField::TransactionType].len();
     }
@@ -464,7 +463,7 @@ impl App {
         let transaction_type = TransactionType::try_from(
             self.category_edit_fields[CategoryEditField::TransactionType].trim(),
         )
-        .map_err(|_| "Transaction type must be Income or Expense.".to_string())?;
+        .map_err(|_| "Transaction type must be Income, Expense, or Transfer.".to_string())?;
         let category = self.category_edit_fields[CategoryEditField::Category]
             .trim()
             .to_string();

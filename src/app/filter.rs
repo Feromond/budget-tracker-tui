@@ -6,7 +6,84 @@ use ratatui::widgets::ListState;
 use rust_decimal::Decimal;
 use std::collections::HashSet;
 
+const MANAGE_ACCOUNTS: &str = "Manage accounts…";
+
 impl App {
+    pub(crate) fn in_account_scope(&self, tx: &crate::model::Transaction) -> bool {
+        self.account_scope
+            .is_none_or(|id| tx.account_id == id || tx.to_account_id == Some(id))
+    }
+
+    pub(crate) fn open_account_scope_picker(&mut self) {
+        let mut options = vec!["All accounts".to_string()];
+        options.extend(self.accounts.all().iter().map(|account| {
+            if account.archived {
+                format!("{} (archived)", account.name)
+            } else {
+                account.name.clone()
+            }
+        }));
+        options.push(MANAGE_ACCOUNTS.to_string());
+        self.type_to_select.clear();
+        self.current_selection_list = options;
+        self.selection_list_state = ListState::default();
+        self.selection_list_state
+            .select(Some(self.account_scope_index()));
+        self.mode = crate::app::state::AppMode::SelectingAccountScope;
+    }
+
+    /// Where the account in view sits in the picker, after "All accounts".
+    pub(crate) fn account_scope_index(&self) -> usize {
+        self.account_scope
+            .and_then(|id| self.accounts.all().iter().position(|a| a.id == id))
+            .map_or(0, |index| index + 1)
+    }
+
+    pub(crate) fn choose_account_scope(&mut self) {
+        let Some(index) = self.selection_list_state.selected() else {
+            self.cancel_account_scope_picker();
+            return;
+        };
+        if index + 1 == self.current_selection_list.len() {
+            self.current_selection_list.clear();
+            self.open_account_manager(crate::app::state::AppMode::Normal);
+            return;
+        }
+        self.account_scope = index
+            .checked_sub(1)
+            .and_then(|index| self.accounts.all().get(index))
+            .map(|account| account.id);
+        self.cancel_account_scope_picker();
+        self.refresh_filter();
+        self.reset_table_selection();
+    }
+
+    pub(crate) fn cancel_account_scope_picker(&mut self) {
+        self.current_selection_list.clear();
+        self.mode = crate::app::state::AppMode::Normal;
+    }
+
+    pub(crate) fn show_all_accounts(&mut self) {
+        self.account_scope = None;
+        self.refresh_filter();
+        self.set_status_message("Showing all accounts", Some(Duration::seconds(3)));
+    }
+
+    pub(crate) fn account_scope_label(&self) -> String {
+        match self.account_scope {
+            Some(id) => self.accounts.name(id).to_string(),
+            None => "all accounts".to_string(),
+        }
+    }
+
+    pub(crate) fn refresh_filter(&mut self) {
+        if self.advanced_filter_fields.all_empty() {
+            self.apply_filter();
+        } else {
+            self.apply_advanced_filter();
+        }
+    }
+
     pub(crate) fn is_filter_active(&self) -> bool {
         !self.simple_filter_content.is_empty() || !self.advanced_filter_fields.all_empty()
     }
@@ -33,11 +110,8 @@ impl App {
             .iter()
             .enumerate()
             .filter(|(_, tx)| {
-                if query.is_empty() {
-                    true
-                } else {
-                    tx.description.to_lowercase().contains(&query)
-                }
+                self.in_account_scope(tx)
+                    && (query.is_empty() || tx.description.to_lowercase().contains(&query))
             })
             .map(|(index, _)| index)
             .collect();
@@ -115,6 +189,8 @@ impl App {
             "Income"
         } else if ft.eq_ignore_ascii_case("Income") {
             "Expense"
+        } else if ft.eq_ignore_ascii_case("Expense") {
+            "Transfer"
         } else {
             ""
         };
@@ -272,6 +348,14 @@ impl App {
                 if type_q.eq_ignore_ascii_case("Expense")
                     && tx.transaction_type != TransactionType::Expense
                 {
+                    return false;
+                }
+                if type_q.eq_ignore_ascii_case("Transfer")
+                    && tx.transaction_type != TransactionType::Transfer
+                {
+                    return false;
+                }
+                if !self.in_account_scope(tx) {
                     return false;
                 }
                 if recurring_q.eq_ignore_ascii_case("Recurring") && !tx.is_recurring {

@@ -1,3 +1,4 @@
+use crate::db::account_store::account_class;
 use crate::db::database::SqliteDatabase;
 use crate::model::{
     DATE_FORMAT, RecurrenceFrequency, Transaction, TransactionDraft, TransactionType,
@@ -26,6 +27,16 @@ pub trait TransactionStore {
     /// Insert every row that is not already present (matched on its natural key). Runs in a
     /// single transaction; duplicates within the batch are skipped too.
     fn import_merge(&self, rows: &[Transaction]) -> Result<ImportSummary>;
+    /// Convert expenses to transfers out and income to transfers in, using `other_account_id`.
+    /// Remove matching manual investment entries in the same transaction.
+    fn convert_to_transfers(
+        &self,
+        ids: &[i64],
+        other_account_id: i64,
+        category: &str,
+        subcategory: &str,
+        duplicate_entries: &[i64],
+    ) -> Result<()>;
 }
 
 pub struct SqliteTransactionStore {
@@ -72,7 +83,33 @@ impl SqliteTransactionStore {
             is_generated_from_recurring: false,
             id: Some(id),
             parent_id: None,
+            account_id: row.get(10)?,
+            to_account_id: row.get(11)?,
         })
+    }
+
+    fn check_accounts(conn: &Connection, ledger_id: i64, draft: &TransactionDraft) -> Result<()> {
+        let class = account_class(conn, ledger_id, draft.account_id)?;
+        match (draft.transaction_type, draft.to_account_id) {
+            (TransactionType::Transfer, None) => Err(Error::new(
+                ErrorKind::InvalidInput,
+                "A transfer needs an account to go to.",
+            )),
+            (TransactionType::Transfer, Some(to)) if to == draft.account_id => Err(Error::new(
+                ErrorKind::InvalidInput,
+                "A transfer has to go to a different account.",
+            )),
+            (TransactionType::Transfer, Some(to)) => account_class(conn, ledger_id, to).map(|_| ()),
+            (_, Some(_)) => Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Only transfers go to a second account.",
+            )),
+            (_, None) if !class.holds_spending() => Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Income and expenses belong in a cash or credit account. Use a transfer to move money into an investment.",
+            )),
+            (_, None) => Ok(()),
+        }
     }
 
     fn insert_with_conn(
@@ -80,6 +117,7 @@ impl SqliteTransactionStore {
         ledger_id: i64,
         draft: &TransactionDraft,
     ) -> Result<i64> {
+        Self::check_accounts(conn, ledger_id, draft)?;
         conn.execute(
             "
             INSERT INTO transactions (
@@ -92,8 +130,10 @@ impl SqliteTransactionStore {
                 subcategory,
                 is_recurring,
                 recurrence_frequency,
-                recurrence_end_date
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                recurrence_end_date,
+                account_id,
+                to_account_id
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
             ",
             params![
                 ledger_id,
@@ -108,6 +148,8 @@ impl SqliteTransactionStore {
                 draft
                     .recurrence_end_date
                     .map(|date| date.format(DATE_FORMAT).to_string()),
+                draft.account_id,
+                draft.to_account_id,
             ],
         )
         .map_err(|err| Error::other(format!("Failed to insert transaction: {}", err)))?;
@@ -128,6 +170,8 @@ impl SqliteTransactionStore {
               AND transaction_type = ?5
               AND category = ?6
               AND subcategory = ?7
+              AND account_id = ?8
+              AND to_account_id IS ?9
             LIMIT 1
             ",
             params![
@@ -138,6 +182,8 @@ impl SqliteTransactionStore {
                 tx.transaction_type.as_str(),
                 &tx.category,
                 &tx.subcategory,
+                tx.account_id,
+                tx.to_account_id,
             ],
             |_| Ok(()),
         )
@@ -159,7 +205,8 @@ impl TransactionStore for SqliteTransactionStore {
             .prepare(
                 "
                 SELECT id, date, description, amount, transaction_type, category, subcategory,
-                       is_recurring, recurrence_frequency, recurrence_end_date
+                       is_recurring, recurrence_frequency, recurrence_end_date, account_id,
+                       to_account_id
                 FROM transactions
                 WHERE ledger_id = ?1
                 ORDER BY date, id
@@ -182,6 +229,7 @@ impl TransactionStore for SqliteTransactionStore {
 
     fn update(&self, id: i64, draft: &TransactionDraft) -> Result<()> {
         let conn = self.ready_connection()?;
+        Self::check_accounts(&conn, self.ledger_id, draft)?;
         let updated = conn
             .execute(
                 "
@@ -195,8 +243,10 @@ impl TransactionStore for SqliteTransactionStore {
                     subcategory = ?6,
                     is_recurring = ?7,
                     recurrence_frequency = ?8,
-                    recurrence_end_date = ?9
-                WHERE id = ?10 AND ledger_id = ?11
+                    recurrence_end_date = ?9,
+                    account_id = ?10,
+                    to_account_id = ?11
+                WHERE id = ?12 AND ledger_id = ?13
                 ",
                 params![
                     draft.date.format(DATE_FORMAT).to_string(),
@@ -210,6 +260,8 @@ impl TransactionStore for SqliteTransactionStore {
                     draft
                         .recurrence_end_date
                         .map(|date| date.format(DATE_FORMAT).to_string()),
+                    draft.account_id,
+                    draft.to_account_id,
                     id,
                     self.ledger_id,
                 ],
@@ -268,6 +320,79 @@ impl TransactionStore for SqliteTransactionStore {
             .map_err(|err| Error::other(format!("Failed to commit import: {}", err)))?;
         Ok(summary)
     }
+
+    fn convert_to_transfers(
+        &self,
+        ids: &[i64],
+        other_account_id: i64,
+        category: &str,
+        subcategory: &str,
+        duplicate_entries: &[i64],
+    ) -> Result<()> {
+        let mut conn = self.ready_connection()?;
+        let tx = conn
+            .transaction()
+            .map_err(|err| Error::other(format!("Failed to begin conversion: {}", err)))?;
+
+        // Assignments read the original row, so swapping the income accounts is safe.
+        for &id in ids {
+            let converted = tx
+                .execute(
+                    "
+                    UPDATE transactions
+                    SET to_account_id = CASE transaction_type
+                            WHEN 'Expense' THEN ?1 ELSE account_id END,
+                        account_id = CASE transaction_type
+                            WHEN 'Expense' THEN account_id ELSE ?1 END,
+                        transaction_type = 'Transfer',
+                        category = ?4,
+                        subcategory = ?5
+                    WHERE id = ?2
+                      AND ledger_id = ?3
+                      AND transaction_type IN ('Income', 'Expense')
+                      AND account_id != ?1
+                      AND EXISTS (SELECT 1 FROM accounts WHERE id = ?1 AND ledger_id = ?3)
+                    ",
+                    params![other_account_id, id, self.ledger_id, category, subcategory],
+                )
+                .map_err(|err| Error::other(format!("Failed to convert transaction: {}", err)))?;
+            if converted == 0 {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    format!("Transaction {} could not be converted.", id),
+                ));
+            }
+        }
+
+        tx.execute(
+            "
+            INSERT INTO categories (transaction_type, category, subcategory)
+            SELECT 'Transfer', ?1, ?2
+            WHERE NOT EXISTS (
+                SELECT 1 FROM categories
+                WHERE transaction_type = 'Transfer'
+                  AND LOWER(category) = LOWER(?1)
+                  AND LOWER(subcategory) = LOWER(?2)
+            )
+            ",
+            params![category, subcategory],
+        )
+        .map_err(|err| Error::other(format!("Failed to add transfer category: {}", err)))?;
+
+        for &id in duplicate_entries {
+            tx.execute(
+                "
+                DELETE FROM investment_entries
+                WHERE id = ?1 AND account_id = ?2 AND entry_kind != 'Valuation'
+                ",
+                params![id, other_account_id],
+            )
+            .map_err(|err| Error::other(format!("Failed to remove duplicate entry: {}", err)))?;
+        }
+
+        tx.commit()
+            .map_err(|err| Error::other(format!("Failed to commit conversion: {}", err)))
+    }
 }
 
 fn parse_date(index: usize, value: &str) -> rusqlite::Result<NaiveDate> {
@@ -318,14 +443,14 @@ fn parse_transaction_type(index: usize, value: &str) -> rusqlite::Result<Transac
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::account_store::{AccountStore, SqliteAccountStore};
     use crate::db::backup::{self, BackupKind};
     use crate::db::category_store::CategoryStore;
     use crate::db::database::SCHEMA_VERSION;
-    use crate::db::investment_store::{InvestmentStore, SqliteInvestmentStore};
     use crate::db::ledger_store::{DEFAULT_LEDGER_ID, LedgerStore, SqliteLedgerStore};
     use crate::model::{
-        BudgetSchedule, InvestmentAccountDraft, InvestmentEntryDraft, InvestmentEntryKind,
-        Portfolio,
+        AccountClass, AccountDraft, Accounts, BudgetSchedule, InvestmentEntry,
+        InvestmentEntryDraft, InvestmentEntryKind, MonthlySummary, Portfolio,
     };
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -366,6 +491,13 @@ mod tests {
                 .unwrap()
                 .id
         }
+
+        fn main_account(&self, ledger_id: i64) -> i64 {
+            SqliteAccountStore::new(SqliteDatabase::new(&self.path), ledger_id)
+                .list_accounts()
+                .unwrap()[0]
+                .id
+        }
     }
 
     impl Drop for TempDb {
@@ -376,6 +508,9 @@ mod tests {
             let _ = std::fs::remove_dir_all(crate::db::backup::backups_dir(&self.path));
         }
     }
+
+    /// Assigned by migration v6 in a fresh database.
+    const MAIN_ACCOUNT: i64 = 1;
 
     fn draft(date: &str, description: &str, amount: &str, category: &str) -> TransactionDraft {
         TransactionDraft {
@@ -388,7 +523,31 @@ mod tests {
             is_recurring: false,
             recurrence_frequency: None,
             recurrence_end_date: None,
+            account_id: MAIN_ACCOUNT,
+            to_account_id: None,
         }
+    }
+
+    fn transfer(date: &str, amount: &str, from: i64, to: i64) -> TransactionDraft {
+        TransactionDraft {
+            transaction_type: TransactionType::Transfer,
+            account_id: from,
+            to_account_id: Some(to),
+            ..draft(date, "Transfer", amount, "Savings")
+        }
+    }
+
+    fn open_account(temp: &TempDb, ledger_id: i64, name: &str, class: AccountClass) -> i64 {
+        investments(temp, ledger_id)
+            .create_account(&AccountDraft {
+                name: name.to_string(),
+                kind: String::new(),
+                archived: false,
+                class,
+                opening_balance: Decimal::ZERO,
+                tracked_from: None,
+            })
+            .unwrap()
     }
 
     #[test]
@@ -913,8 +1072,8 @@ mod tests {
         );
     }
 
-    fn investments(temp: &TempDb, ledger_id: i64) -> SqliteInvestmentStore {
-        SqliteInvestmentStore::new(SqliteDatabase::new(&temp.path), ledger_id)
+    fn investments(temp: &TempDb, ledger_id: i64) -> SqliteAccountStore {
+        SqliteAccountStore::new(SqliteDatabase::new(&temp.path), ledger_id)
     }
 
     fn entry(
@@ -942,10 +1101,13 @@ mod tests {
         let temp = TempDb::new();
         let store = investments(&temp, DEFAULT_LEDGER_ID);
         let account = store
-            .create_account(&InvestmentAccountDraft {
+            .create_account(&AccountDraft {
                 name: "TFSA".to_string(),
                 kind: "Brokerage".to_string(),
                 archived: false,
+                class: AccountClass::Investment,
+                opening_balance: Decimal::ZERO,
+                tracked_from: None,
             })
             .unwrap();
 
@@ -1014,10 +1176,13 @@ mod tests {
         let temp = TempDb::new();
         let source = investments(&temp, DEFAULT_LEDGER_ID);
         let account = source
-            .create_account(&InvestmentAccountDraft {
+            .create_account(&AccountDraft {
                 name: "Brokerage".to_string(),
                 kind: "Taxable".to_string(),
                 archived: false,
+                class: AccountClass::Investment,
+                opening_balance: Decimal::ZERO,
+                tracked_from: None,
             })
             .unwrap();
         source
@@ -1029,11 +1194,25 @@ mod tests {
             ))
             .unwrap();
 
+        temp.store()
+            .insert(&transfer("2025-02-01", "100", MAIN_ACCOUNT, account))
+            .unwrap();
+
         let ledger_store = SqliteLedgerStore::new(SqliteDatabase::new(&temp.path));
         let copy = ledger_store.copy(DEFAULT_LEDGER_ID, "Copy").unwrap();
 
         let copied = investments(&temp, copy.id);
-        assert_eq!(copied.list_accounts().unwrap().len(), 1);
+        let copied_accounts = Accounts::new(copied.list_accounts().unwrap());
+        assert_eq!(copied_accounts.all().len(), 2);
+        let copied_transfer = &temp.store_for(copy.id).list().unwrap()[0];
+        assert_eq!(
+            copied_transfer.account_id,
+            copied_accounts.named("Main Account").unwrap().id
+        );
+        assert_eq!(
+            copied_transfer.to_account_id,
+            Some(copied_accounts.named("Brokerage").unwrap().id)
+        );
         let copied_entries = copied.list_entries().unwrap();
         assert_eq!(copied_entries.len(), 1);
         assert_eq!(copied_entries[0].amount, Decimal::from(500));
@@ -1045,6 +1224,455 @@ mod tests {
         assert!(copied.list_entries().unwrap().is_empty());
         // The ledger that was copied from is untouched.
         assert_eq!(source.list_entries().unwrap().len(), 1);
+    }
+
+    // Includes an account name conflict and a transaction whose ledger is missing.
+    const V5_FIXTURE: &str = "
+        CREATE TABLE database_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE categories (
+            id INTEGER PRIMARY KEY,
+            transaction_type TEXT NOT NULL CHECK (transaction_type IN ('Income', 'Expense')),
+            category TEXT NOT NULL,
+            subcategory TEXT NOT NULL DEFAULT '',
+            tag TEXT NULL,
+            UNIQUE(transaction_type, category, subcategory)
+        );
+        INSERT INTO categories (id, transaction_type, category) VALUES (1, 'Expense', 'Food');
+        CREATE TABLE transactions (
+            id INTEGER PRIMARY KEY,
+            date TEXT NOT NULL,
+            description TEXT NOT NULL,
+            amount TEXT NOT NULL,
+            transaction_type TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'Uncategorized',
+            subcategory TEXT NOT NULL DEFAULT '',
+            is_recurring INTEGER NOT NULL DEFAULT 0,
+            recurrence_frequency TEXT NULL,
+            recurrence_end_date TEXT NULL,
+            ledger_id INTEGER NOT NULL DEFAULT 1
+        );
+        INSERT INTO transactions (id, ledger_id, date, description, amount, transaction_type, category)
+        VALUES (7, 1, '2026-01-05', 'Coffee', '4.50', 'Expense', 'Food'),
+               (9, 1, '2026-01-06', 'Pay', '100', 'Income', 'Salary'),
+               (11, 2, '2026-01-07', 'Rent', '900', 'Expense', 'Housing'),
+               (13, 5, '2026-01-08', 'Lost', '1', 'Expense', 'Food');
+        CREATE TABLE ledgers (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL COLLATE NOCASE,
+            position INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            UNIQUE(name)
+        );
+        INSERT INTO ledgers (id, name, created_at)
+        VALUES (1, 'Main', datetime('now')), (2, 'Scenario', datetime('now'));
+        CREATE TABLE budget_periods (
+            id INTEGER PRIMARY KEY,
+            ledger_id INTEGER NOT NULL REFERENCES ledgers(id) ON DELETE CASCADE,
+            category_id INTEGER NULL REFERENCES categories(id) ON DELETE CASCADE,
+            start_year INTEGER NOT NULL,
+            start_month INTEGER NOT NULL,
+            amount TEXT NULL
+        );
+        INSERT INTO budget_periods (ledger_id, category_id, start_year, start_month, amount)
+        VALUES (1, 1, 0, 1, '600'), (1, NULL, 2026, 1, '2000'), (2, 1, 2026, 1, '400');
+        CREATE TABLE investment_accounts (
+            id INTEGER PRIMARY KEY,
+            ledger_id INTEGER NOT NULL REFERENCES ledgers(id) ON DELETE CASCADE,
+            name TEXT NOT NULL COLLATE NOCASE,
+            kind TEXT NOT NULL DEFAULT '',
+            position INTEGER NOT NULL DEFAULT 0,
+            archived INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(ledger_id, name)
+        );
+        INSERT INTO investment_accounts (id, ledger_id, name)
+        VALUES (3, 1, 'TFSA'), (4, 2, 'Main Account'), (5, 2, 'main account 2');
+        CREATE TABLE investment_entries (
+            id INTEGER PRIMARY KEY,
+            account_id INTEGER NOT NULL REFERENCES investment_accounts(id) ON DELETE CASCADE,
+            date TEXT NOT NULL,
+            entry_kind TEXT NOT NULL,
+            amount TEXT NOT NULL,
+            note TEXT NOT NULL DEFAULT '',
+            transaction_id INTEGER NULL
+        );
+        INSERT INTO investment_entries (account_id, date, entry_kind, amount, note)
+        VALUES (3, '2026-01-01', 'Valuation', '1000', 'Opening position');
+        PRAGMA user_version = 5;
+    ";
+
+    #[test]
+    fn upgrading_to_v6_gives_every_transaction_an_account_and_loses_nothing() {
+        let temp = TempDb::new();
+        let database = SqliteDatabase::new(&temp.path);
+        let mut conn = database.open_connection("test").unwrap();
+        conn.execute_batch(V5_FIXTURE).unwrap();
+        database.run_migrations(&mut conn).unwrap();
+
+        let count = |sql: &str| -> i64 { conn.query_row(sql, [], |row| row.get(0)).unwrap() };
+        assert_eq!(count("SELECT COUNT(*) FROM budget_periods"), 3);
+        assert_eq!(count("SELECT COUNT(*) FROM categories"), 1);
+        assert_eq!(count("SELECT COUNT(*) FROM investment_entries"), 1);
+        assert_eq!(count("SELECT COUNT(*) FROM pragma_foreign_key_check"), 0);
+        assert_eq!(count("PRAGMA foreign_keys"), 1);
+        assert_eq!(
+            count(
+                "SELECT COUNT(*) FROM pragma_foreign_key_list('investment_entries') WHERE \"table\" = 'accounts'"
+            ),
+            1
+        );
+        assert_eq!(
+            count(
+                "SELECT COUNT(*) FROM pragma_table_info('investment_entries') WHERE name = 'transaction_id'"
+            ),
+            0
+        );
+        assert_eq!(count("SELECT COUNT(*) FROM ledgers WHERE id = 5"), 1);
+        drop(conn);
+
+        let main = Accounts::new(
+            investments(&temp, DEFAULT_LEDGER_ID)
+                .list_accounts()
+                .unwrap(),
+        );
+        let cash = main.default_id().unwrap();
+        assert_eq!(main.name(cash), "Main Account");
+        let tfsa = main.named("TFSA").unwrap();
+        assert_eq!(tfsa.class, AccountClass::Investment);
+        assert_eq!(tfsa.tracked_from, Some(day("2026-01-01")));
+        let rows = temp.store().list().unwrap();
+        assert_eq!(
+            rows.iter()
+                .map(|tx| (tx.id, tx.transaction_type, tx.account_id))
+                .collect::<Vec<_>>(),
+            vec![
+                (Some(7), TransactionType::Expense, cash),
+                (Some(9), TransactionType::Income, cash),
+            ]
+        );
+
+        let scenario = Accounts::new(investments(&temp, 2).list_accounts().unwrap());
+        let scenario_cash = scenario.default_id().unwrap();
+        assert_eq!(scenario.name(scenario_cash), "Main Account 3");
+        assert_eq!(
+            temp.store_for(2).list().unwrap()[0].account_id,
+            scenario_cash
+        );
+        assert_eq!(temp.store_for(5).list().unwrap().len(), 1);
+
+        let tfsa = main.named("TFSA").unwrap().id;
+        temp.store()
+            .insert(&transfer("2026-02-01", "250", cash, tfsa))
+            .unwrap();
+        assert_eq!(temp.store().list().unwrap()[2].to_account_id, Some(tfsa));
+    }
+
+    #[test]
+    fn a_failed_upgrade_changes_nothing() {
+        let temp = TempDb::new();
+        let database = SqliteDatabase::new(&temp.path);
+        let mut conn = database.open_connection("test").unwrap();
+        conn.execute_batch(V5_FIXTURE).unwrap();
+        // Force a table name conflict during the rebuild.
+        conn.execute_batch("CREATE TABLE transactions_v6 (id INTEGER);")
+            .unwrap();
+
+        assert!(database.run_migrations(&mut conn).is_err());
+        let count = |sql: &str| -> i64 { conn.query_row(sql, [], |row| row.get(0)).unwrap() };
+        assert_eq!(count("PRAGMA user_version"), 5);
+        assert_eq!(count("PRAGMA foreign_keys"), 1);
+        assert_eq!(count("SELECT COUNT(*) FROM transactions"), 4);
+        assert_eq!(count("SELECT COUNT(*) FROM budget_periods"), 3);
+        assert_eq!(count("SELECT COUNT(*) FROM investment_accounts"), 3);
+    }
+
+    #[test]
+    fn a_card_purchase_counts_once_and_its_payment_is_a_transfer() {
+        let temp = TempDb::new();
+        let visa = open_account(&temp, DEFAULT_LEDGER_ID, "Visa", AccountClass::Credit);
+        let store = temp.store();
+        store
+            .insert(&TransactionDraft {
+                account_id: visa,
+                ..draft("2026-03-02", "Phone", "1200", "Shopping")
+            })
+            .unwrap();
+        store
+            .insert(&TransactionDraft {
+                category: "Debt Payments".to_string(),
+                ..transfer("2026-03-20", "1200", MAIN_ACCOUNT, visa)
+            })
+            .unwrap();
+
+        let rows = store.list().unwrap();
+        let mut totals = MonthlySummary::default();
+        rows.iter().for_each(|tx| totals.add(tx));
+        assert_eq!(totals.expense, Decimal::from(1200));
+        assert_eq!(totals.transferred, Decimal::from(1200));
+        assert_eq!(rows[0].category, "Shopping");
+        assert_eq!(rows[1].category, "Debt Payments");
+
+        let accounts = investments(&temp, DEFAULT_LEDGER_ID);
+        for (id, name, class, opening, tracked_from) in [
+            (
+                MAIN_ACCOUNT,
+                "Main Account",
+                AccountClass::Cash,
+                "4100",
+                Some(day("2026-03-25")),
+            ),
+            (visa, "Visa", AccountClass::Credit, "-300", None),
+        ] {
+            accounts
+                .update_account(
+                    id,
+                    &AccountDraft {
+                        name: name.to_string(),
+                        kind: String::new(),
+                        archived: false,
+                        class,
+                        opening_balance: Decimal::from_str(opening).unwrap(),
+                        tracked_from,
+                    },
+                )
+                .unwrap();
+        }
+        let all = Accounts::new(accounts.list_accounts().unwrap());
+        let balance = |id, on| all.balance(id, &rows, day(on));
+        assert_eq!(balance(MAIN_ACCOUNT, "2026-03-31"), Decimal::from(4100));
+        assert_eq!(balance(visa, "2026-03-10"), Decimal::from(-1500));
+        assert_eq!(balance(visa, "2026-03-31"), Decimal::from(-300));
+    }
+
+    #[test]
+    fn transfers_become_investment_flows_and_pin_their_accounts() {
+        let temp = TempDb::new();
+        let accounts = investments(&temp, DEFAULT_LEDGER_ID);
+        let rrsp = open_account(&temp, DEFAULT_LEDGER_ID, "RRSP", AccountClass::Investment);
+        accounts
+            .save_entry(&entry(
+                rrsp,
+                "2025-01-01",
+                InvestmentEntryKind::Valuation,
+                "1000",
+            ))
+            .unwrap();
+
+        accounts
+            .update_account(
+                rrsp,
+                &AccountDraft {
+                    name: "RRSP".to_string(),
+                    kind: String::new(),
+                    archived: false,
+                    class: AccountClass::Investment,
+                    opening_balance: Decimal::ZERO,
+                    tracked_from: Some(day("2025-01-01")),
+                },
+            )
+            .unwrap();
+
+        let store = temp.store();
+        store
+            .insert(&transfer("2024-11-01", "800", MAIN_ACCOUNT, rrsp))
+            .unwrap();
+        store
+            .insert(&transfer("2025-02-01", "500", MAIN_ACCOUNT, rrsp))
+            .unwrap();
+        store
+            .insert(&transfer("2025-03-01", "200", rrsp, MAIN_ACCOUNT))
+            .unwrap();
+
+        let transactions = store.list().unwrap();
+        let mut entries = accounts.list_entries().unwrap();
+        entries.extend(
+            transactions
+                .iter()
+                .flat_map(InvestmentEntry::transfer_flows),
+        );
+        let all = Accounts::new(accounts.list_accounts().unwrap());
+        let portfolio = Portfolio::new(all.investments(), entries);
+
+        let position = portfolio.position(rrsp, day("2025-04-01"));
+        assert_eq!(position.value, Decimal::from(1300));
+        assert_eq!(position.invested, Decimal::from(300));
+        assert_eq!(
+            portfolio.gain_between(Some(rrsp), day("2025-01-01"), day("2025-04-01"), false),
+            Decimal::ZERO
+        );
+        assert_eq!(portfolio.entries_for(MAIN_ACCOUNT).count(), 0);
+
+        assert_eq!(
+            accounts.delete_account(rrsp).unwrap_err().kind(),
+            ErrorKind::InvalidInput
+        );
+        let mut retyped = AccountDraft {
+            name: "RRSP".to_string(),
+            kind: String::new(),
+            archived: false,
+            class: AccountClass::Cash,
+            opening_balance: Decimal::ZERO,
+            tracked_from: None,
+        };
+        assert_eq!(
+            accounts.update_account(rrsp, &retyped).unwrap_err().kind(),
+            ErrorKind::InvalidInput
+        );
+        retyped.class = AccountClass::Investment;
+        retyped.archived = true;
+        accounts.update_account(rrsp, &retyped).unwrap();
+    }
+
+    #[test]
+    fn converting_a_category_to_transfers_drops_manual_duplicates() {
+        let temp = TempDb::new();
+        let accounts = investments(&temp, DEFAULT_LEDGER_ID);
+        let rrsp = open_account(&temp, DEFAULT_LEDGER_ID, "RRSP", AccountClass::Investment);
+        for (date, amount) in [
+            ("2025-01-15", "500"),
+            ("2025-02-15", "500"),
+            ("2025-03-01", "80"),
+        ] {
+            accounts
+                .save_entry(&entry(
+                    rrsp,
+                    date,
+                    InvestmentEntryKind::Contribution,
+                    amount,
+                ))
+                .unwrap();
+        }
+
+        let store = temp.store();
+        let saving = store
+            .insert(&draft("2025-01-15", "Saving", "500", "savings"))
+            .unwrap();
+        let payout = store
+            .insert(&TransactionDraft {
+                transaction_type: TransactionType::Income,
+                ..draft("2025-02-20", "Withdrawal", "100", "savings")
+            })
+            .unwrap();
+        store
+            .insert(&draft("2025-02-15", "Groceries", "500", "Food"))
+            .unwrap();
+
+        let mut converted = transfer("2025-01-15", "500", MAIN_ACCOUNT, rrsp).into_transaction();
+        converted.id = Some(saving);
+        let flows = InvestmentEntry::transfer_flows(&converted);
+        let all = Accounts::new(accounts.list_accounts().unwrap());
+        let portfolio = Portfolio::new(all.investments(), accounts.list_entries().unwrap());
+        let duplicates = portfolio.duplicate_entries(rrsp, &flows);
+        // Only January matches. February's 500 was groceries.
+        assert_eq!(duplicates.len(), 1);
+
+        store
+            .convert_to_transfers(&[saving, payout], rrsp, "Savings", "", &duplicates)
+            .unwrap();
+
+        let rows = store.list().unwrap();
+        let shape: Vec<_> = rows
+            .iter()
+            .map(|tx| {
+                (
+                    tx.description.as_str(),
+                    tx.transaction_type,
+                    tx.account_id,
+                    tx.to_account_id,
+                    tx.category.as_str(),
+                )
+            })
+            .collect();
+        assert!(shape.contains(&(
+            "Saving",
+            TransactionType::Transfer,
+            MAIN_ACCOUNT,
+            Some(rrsp),
+            "Savings"
+        )));
+        assert!(shape.contains(&(
+            "Withdrawal",
+            TransactionType::Transfer,
+            rrsp,
+            Some(MAIN_ACCOUNT),
+            "Savings"
+        )));
+        assert!(shape.contains(&(
+            "Groceries",
+            TransactionType::Expense,
+            MAIN_ACCOUNT,
+            None,
+            "Food"
+        )));
+        assert_eq!(accounts.list_entries().unwrap().len(), 2);
+        let categories =
+            crate::db::category_store::SqliteCategoryStore::new(SqliteDatabase::new(&temp.path));
+        assert!(categories.list().unwrap().iter().any(|record| {
+            record.transaction_type == TransactionType::Transfer && record.category == "Savings"
+        }));
+
+        let remaining = accounts.list_entries().unwrap()[0].id;
+        assert!(
+            store
+                .convert_to_transfers(&[saving], rrsp, "Savings", "", &[remaining])
+                .is_err()
+        );
+        assert_eq!(accounts.list_entries().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn upgrading_the_default_catalog_only_adds_what_is_new() {
+        use crate::db::category_store::{CATEGORY_SEED_VERSION, SqliteCategoryStore};
+
+        assert!(
+            crate::csv_io::seed_categories_added_after(CATEGORY_SEED_VERSION)
+                .unwrap()
+                .is_empty()
+        );
+        let added = crate::csv_io::seed_categories_added_after(1).unwrap();
+        assert!(!added.is_empty());
+
+        let temp = TempDb::new();
+        let database = SqliteDatabase::new(&temp.path);
+        let conn = database.ready_connection("test").unwrap();
+        // An older catalog with one new default already added in lowercase.
+        conn.execute_batch(
+            "
+            INSERT INTO categories (transaction_type, category, subcategory)
+            VALUES ('Expense', 'Food & Dining', 'Groceries'),
+                   ('Transfer', 'debt payments', 'credit card payments');
+            INSERT INTO database_meta (key, value) VALUES ('category_seed_version', '1');
+            ",
+        )
+        .unwrap();
+        drop(conn);
+
+        let categories = SqliteCategoryStore::new(database.clone());
+        categories.initialize(&[]).unwrap();
+        categories.initialize(&[]).unwrap();
+
+        let records = categories.list().unwrap();
+        assert_eq!(records.len(), 1 + added.len());
+        let count = |category: &str, subcategory: &str| {
+            records
+                .iter()
+                .filter(|record| {
+                    record.category.eq_ignore_ascii_case(category)
+                        && record.subcategory.eq_ignore_ascii_case(subcategory)
+                })
+                .count()
+        };
+        assert_eq!(count("Debt Payments", "Credit Card Payments"), 1);
+        assert_eq!(count("Debt Payments", "Interest Charges"), 1);
+        assert_eq!(count("Food & Dining", "Groceries"), 1);
+        assert_eq!(count("Housing", "Rent / Mortgage"), 0);
+
+        let conn = database.ready_connection("test").unwrap();
+        assert_eq!(
+            database
+                .metadata_value(&conn, "category_seed_version")
+                .unwrap(),
+            Some(CATEGORY_SEED_VERSION.to_string())
+        );
     }
 
     #[test]
@@ -1080,8 +1708,18 @@ mod tests {
         assert!(forecast_store.list().unwrap().is_empty());
 
         let id = forecast_store
-            .insert(&draft("2026-02-01", "Rent", "1000", "Housing"))
+            .insert(&TransactionDraft {
+                account_id: temp.main_account(forecast),
+                ..draft("2026-02-01", "Rent", "1000", "Housing")
+            })
             .unwrap();
+        assert_eq!(
+            forecast_store
+                .insert(&draft("2026-02-01", "Rent", "1000", "Housing"))
+                .unwrap_err()
+                .kind(),
+            ErrorKind::NotFound
+        );
         assert_eq!(temp.store().list().unwrap().len(), 1);
         assert_eq!(forecast_store.list().unwrap().len(), 1);
 
@@ -1141,9 +1779,14 @@ mod tests {
         assert_eq!(store.list().unwrap().len(), 2);
 
         // Dedupe is per-ledger, so the same rows import cleanly into a different ledger.
-        let other = temp.store_for(temp.create_ledger("Forecast"));
-        let dup = draft("2026-01-05", "Coffee", "4.5", "Food").into_transaction();
-        let fresh = draft("2026-02-01", "Books", "20", "Education").into_transaction();
+        let forecast = temp.create_ledger("Forecast");
+        let other = temp.store_for(forecast);
+        let in_forecast = |draft: TransactionDraft| TransactionDraft {
+            account_id: temp.main_account(forecast),
+            ..draft
+        };
+        let dup = in_forecast(draft("2026-01-05", "Coffee", "4.5", "Food")).into_transaction();
+        let fresh = in_forecast(draft("2026-02-01", "Books", "20", "Education")).into_transaction();
         let summary = other.import_merge(&[dup, fresh]).unwrap();
         assert_eq!(summary.added, 2);
         assert_eq!(summary.skipped, 0);
@@ -1167,9 +1810,15 @@ mod tests {
         assert_eq!(rows.len(), 4, "all CSV rows parse");
 
         // The import path drops generated occurrences, keeping only real rows (source + normal).
-        let real_rows: Vec<_> = rows
-            .into_iter()
-            .filter(|tx| !tx.is_generated_from_recurring)
+        let accounts = Accounts::new(
+            investments(&temp, DEFAULT_LEDGER_ID)
+                .list_accounts()
+                .unwrap(),
+        );
+        let real_rows: Vec<Transaction> = rows
+            .iter()
+            .filter(|row| !row.is_generated_from_recurring)
+            .map(|row| accounts.link_csv(row).unwrap())
             .collect();
         let summary = temp.store().import_merge(&real_rows).unwrap();
         assert_eq!(summary.added, 2);
@@ -1182,6 +1831,61 @@ mod tests {
             stored.iter().any(|tx| tx.is_recurring
                 && tx.recurrence_frequency == Some(RecurrenceFrequency::Monthly))
         );
+
+        let _ = std::fs::remove_file(&csv_path);
+    }
+
+    #[test]
+    fn accounts_round_trip_through_csv_by_name() {
+        let temp = TempDb::new();
+        let rrsp = open_account(&temp, DEFAULT_LEDGER_ID, "RRSP", AccountClass::Investment);
+        temp.store()
+            .insert(&transfer("2026-01-01", "250", MAIN_ACCOUNT, rrsp))
+            .unwrap();
+        let accounts = Accounts::new(
+            investments(&temp, DEFAULT_LEDGER_ID)
+                .list_accounts()
+                .unwrap(),
+        );
+
+        let csv_path = temp.path.with_extension("csv");
+        let exported: Vec<_> = temp
+            .store()
+            .list()
+            .unwrap()
+            .iter()
+            .map(|tx| accounts.csv_row(tx))
+            .collect();
+        crate::csv_io::save_transactions(&exported, &csv_path).unwrap();
+        assert!(
+            std::fs::read_to_string(&csv_path)
+                .unwrap()
+                .contains("Transfer,Savings,,false,,,false,Main Account,RRSP")
+        );
+
+        let rows: Vec<Transaction> = crate::csv_io::load_transactions(&csv_path)
+            .unwrap()
+            .iter()
+            .map(|row| accounts.link_csv(row).unwrap())
+            .collect();
+        assert_eq!(rows[0].account_id, MAIN_ACCOUNT);
+        assert_eq!(rows[0].to_account_id, Some(rrsp));
+        assert_eq!(temp.store().import_merge(&rows).unwrap().added, 0);
+
+        std::fs::write(
+            &csv_path,
+            "date,description,amount,transaction_type,category\n\
+             2026-01-05,Coffee,4.50,Expense,Food\n",
+        )
+        .unwrap();
+        let old = crate::csv_io::load_transactions(&csv_path).unwrap();
+        assert_eq!(accounts.link_csv(&old[0]).unwrap().account_id, MAIN_ACCOUNT);
+        let mut unknown = old[0].clone();
+        unknown.account = "Nowhere".to_string();
+        assert!(accounts.link_csv(&unknown).is_err());
+        let mut headless = old[0].clone();
+        headless.transaction_type = TransactionType::Transfer;
+        assert!(accounts.link_csv(&headless).is_err());
 
         let _ = std::fs::remove_file(&csv_path);
     }
@@ -1202,6 +1906,8 @@ mod tests {
                 is_generated_from_recurring: false,
                 id: None,
                 parent_id: None,
+                account_id: self.account_id,
+                to_account_id: self.to_account_id,
             }
         }
     }

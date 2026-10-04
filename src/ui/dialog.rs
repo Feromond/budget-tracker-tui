@@ -4,7 +4,14 @@ use ratatui::prelude::*;
 use ratatui::widgets::*;
 
 pub fn render_confirmation_dialog(f: &mut Frame, message: &str, area: Rect) {
-    let dialog_area = centered_rect(60, 20, area);
+    let base = centered_rect(60, 20, area);
+    let lines = wrapped_line_count(message, base.width.saturating_sub(2));
+    let height = (lines + 2).max(base.height).min(area.height);
+    let dialog_area = Rect {
+        y: area.y + (area.height - height) / 2,
+        height,
+        ..base
+    };
 
     let dialog_block = Block::default()
         .title("Confirmation")
@@ -21,18 +28,78 @@ pub fn render_confirmation_dialog(f: &mut Frame, message: &str, area: Rect) {
     f.render_widget(dialog_text, dialog_area);
 }
 
+fn wrapped_line_count(text: &str, width: u16) -> u16 {
+    let width = usize::from(width.max(1));
+    let mut lines = 0u16;
+    for paragraph in text.lines() {
+        let mut used = 0;
+        lines += 1;
+        for word in paragraph.split_whitespace() {
+            let len = word.chars().count();
+            if used == 0 {
+                used = len;
+            } else if used + 1 + len <= width {
+                used += 1 + len;
+            } else {
+                lines += 1;
+                used = len;
+            }
+            while used > width {
+                lines += 1;
+                used -= width;
+            }
+        }
+    }
+    lines.max(1)
+}
+
 pub fn render_selection_popup(f: &mut Frame, app: &mut App, area: Rect) {
+    use crate::app::fields::{AddEditField, SelectingField};
+    let picking_account = matches!(
+        app.selecting_field,
+        Some(SelectingField::AddEdit(
+            AddEditField::Account | AddEditField::ToAccount
+        ))
+    );
     let popup_title = match app.mode {
+        _ if picking_account => "Select Account (Enter/Esc)",
         crate::app::state::AppMode::SelectingCategory => "Select Category (Enter/Esc)",
+        crate::app::state::AppMode::SelectingAccountScope => "Show Account (Enter/Esc)",
+        crate::app::state::AppMode::SelectingConversionAccount => {
+            "Pick the Other Account (Enter/Esc)"
+        }
         crate::app::state::AppMode::SelectingSubcategory => "Select Subcategory (Enter/Esc)",
         crate::app::state::AppMode::SelectingRecurrenceFrequency => "Select Frequency (Enter/Esc)",
         _ => "Select Option",
     };
 
+    let scope_picker = app.mode == crate::app::state::AppMode::SelectingAccountScope;
+    let current = app.account_scope_index();
+    let last = app.current_selection_list.len().saturating_sub(1);
     let items: Vec<ListItem> = app
         .current_selection_list
         .iter()
-        .map(|i| ListItem::new(i.as_str()).style(Style::default().fg(Color::White)))
+        .enumerate()
+        .map(|(index, item)| match index {
+            _ if scope_picker && index == current => ListItem::new(Line::from(vec![
+                Span::styled("● ", Style::default().fg(Color::LightGreen)),
+                Span::styled(
+                    item.as_str(),
+                    Style::default()
+                        .fg(Color::LightGreen)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ])),
+            _ if scope_picker && index == last => ListItem::new(format!("› {}", item)).style(
+                Style::default()
+                    .fg(Color::LightCyan)
+                    .add_modifier(Modifier::ITALIC),
+            ),
+            _ if scope_picker => {
+                ListItem::new(format!("  {}", item)).style(Style::default().fg(Color::White))
+            }
+            _ => ListItem::new(item.as_str()).style(Style::default().fg(Color::White)),
+        })
         .collect();
 
     let item_count = items.len();

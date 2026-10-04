@@ -19,10 +19,13 @@ pub fn handle_normal_mode(app: &mut App, key_event: KeyEvent) {
         (KeyCode::Char('q'), _) | (KeyCode::Esc, _) => {
             if app.is_filter_active() {
                 app.reset_all_filters();
+            } else if app.account_scope.is_some() {
+                app.show_all_accounts();
             } else {
                 app.quit();
             }
         }
+        (KeyCode::Char('A'), _) => app.open_account_scope_picker(),
         (KeyCode::Char('a'), _) => app.start_adding(),
         (KeyCode::Char('d'), _) => app.prepare_for_delete(),
         (KeyCode::Char('e'), _) => app.start_editing(),

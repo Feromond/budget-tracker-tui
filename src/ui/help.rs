@@ -70,12 +70,12 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
             ),
             Span::raw(" Inv | "),
             Span::styled(
-                "1-6",
+                "A",
                 Style::default()
                     .fg(Color::LightBlue)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::raw(" Srt | "),
+            Span::raw(" Acct | "),
             Span::styled(
                 "q/Esc",
                 Style::default()
@@ -127,7 +127,10 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
             Span::styled("Esc", Style::default().fg(Color::LightRed)),
             Span::raw(": Cancel"),
         ],
-        AppMode::SelectingCategory | AppMode::SelectingSubcategory => vec![
+        AppMode::SelectingCategory
+        | AppMode::SelectingSubcategory
+        | AppMode::SelectingConversionAccount
+        | AppMode::SelectingAccountScope => vec![
             Span::raw("↑↓ Nav | "),
             Span::styled("Enter", Style::default().fg(Color::LightGreen)),
             Span::raw(": Confirm | "),
@@ -193,7 +196,7 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
             ),
             Span::raw(" Month Jump | "),
             Span::styled(
-                "1-6",
+                "1-7",
                 Style::default()
                     .fg(Color::LightMagenta)
                     .add_modifier(Modifier::BOLD),
@@ -271,23 +274,32 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
             Span::styled("Ctrl+U", Style::default().fg(Color::LightMagenta)),
             Span::raw(": Clear"),
         ],
-        AppMode::CategoryCatalog => vec![
-            Span::raw("↑↓ Nav | "),
-            Span::styled("f", Style::default().fg(Color::Cyan)),
-            Span::raw(": Filter | "),
-            Span::styled("a", Style::default().fg(Color::LightGreen)),
-            Span::raw(": Add | "),
-            Span::styled("e/Enter", Style::default().fg(Color::LightYellow)),
-            Span::raw(": Edit | "),
-            Span::styled("d", Style::default().fg(Color::LightRed)),
-            Span::raw(": Delete | "),
-            Span::styled("b", Style::default().fg(Color::LightMagenta)),
-            Span::raw(": Budget | "),
-            Span::styled("1-5", Style::default().fg(Color::LightBlue)),
-            Span::raw(": Sort | "),
-            Span::styled("q/Esc", Style::default().fg(Color::LightCyan)),
-            Span::raw(": Back"),
-        ],
+        AppMode::CategoryCatalog => {
+            let mut spans = vec![
+                Span::raw("↑↓ Nav | "),
+                Span::styled("f", Style::default().fg(Color::Cyan)),
+                Span::raw(": Filter | "),
+                Span::styled("a", Style::default().fg(Color::LightGreen)),
+                Span::raw(": Add | "),
+                Span::styled("e/Enter", Style::default().fg(Color::LightYellow)),
+                Span::raw(": Edit | "),
+                Span::styled("d", Style::default().fg(Color::LightRed)),
+                Span::raw(": Delete | "),
+                Span::styled("b", Style::default().fg(Color::LightMagenta)),
+                Span::raw(": Budget | "),
+            ];
+            if app.suggests_conversion() {
+                spans.push(Span::styled("t", Style::default().fg(Color::LightBlue)));
+                spans.push(Span::raw(": To Transfers | "));
+            }
+            spans.extend([
+                Span::styled("1-5", Style::default().fg(Color::LightBlue)),
+                Span::raw(": Sort | "),
+                Span::styled("q/Esc", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Back"),
+            ]);
+            spans
+        }
         AppMode::CategoryCatalogFilter => vec![
             Span::raw("Type to Filter | "),
             Span::raw("↑↓ Nav | "),
@@ -306,7 +318,7 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
             Span::styled("Esc", Style::default().fg(Color::LightRed)),
             Span::raw(": Cancel"),
         ],
-        AppMode::ConfirmCategoryDelete => vec![
+        AppMode::ConfirmCategoryDelete | AppMode::ConfirmCategoryConversion => vec![
             Span::styled("y", Style::default().fg(Color::LightGreen)),
             Span::raw(": Confirm | "),
             Span::styled("n/Esc", Style::default().fg(Color::LightRed)),
@@ -372,6 +384,31 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
             Span::raw(": Delete | "),
             Span::styled("q/Esc", Style::default().fg(Color::LightCyan)),
             Span::raw(": Back"),
+        ],
+        AppMode::AccountManager => vec![
+            Span::raw("↑↓ Nav | "),
+            Span::styled("a", Style::default().fg(Color::LightGreen)),
+            Span::raw(": Add | "),
+            Span::styled("e/Enter", Style::default().fg(Color::LightYellow)),
+            Span::raw(": Edit | "),
+            Span::styled("d", Style::default().fg(Color::LightRed)),
+            Span::raw(": Delete | "),
+            Span::styled("q/Esc", Style::default().fg(Color::LightCyan)),
+            Span::raw(": Back"),
+        ],
+        AppMode::AccountEditor => vec![
+            Span::raw("Tab/↑↓ Nav | "),
+            Span::raw("←→ Toggle/Cursor | "),
+            Span::styled("Enter", Style::default().fg(Color::LightGreen)),
+            Span::raw(": Toggle/Save | "),
+            Span::styled("Esc", Style::default().fg(Color::LightRed)),
+            Span::raw(": Cancel"),
+        ],
+        AppMode::ConfirmAccountDelete => vec![
+            Span::styled("y", Style::default().fg(Color::LightGreen)),
+            Span::raw(": Confirm | "),
+            Span::styled("any other key", Style::default().fg(Color::LightRed)),
+            Span::raw(": Cancel"),
         ],
         AppMode::LedgerEditor => vec![
             Span::raw("Type a name | "),

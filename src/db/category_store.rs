@@ -3,6 +3,9 @@ use crate::model::{CategoryDraft, CategoryInfo, CategoryRecord, TransactionType}
 use rusqlite::{Connection, Row, params};
 use std::io::{Error, ErrorKind, Result};
 
+/// Keep in sync with the highest `Since` in `budget_categories.csv`.
+pub(crate) const CATEGORY_SEED_VERSION: u32 = 2;
+
 /// The category catalog is shared by every ledger, so updating or deleting a category re-points
 /// the matching transactions across all of them, in one transaction with the catalog write.
 pub trait CategoryStore {
@@ -26,44 +29,57 @@ impl SqliteCategoryStore {
         self.database.ready_connection("category")
     }
 
-    fn seed_if_empty(&self, conn: &Connection, seed_categories: &[CategoryInfo]) -> Result<()> {
-        let seeded_flag = self
+    /// On upgrade, add new defaults without restoring edited or deleted categories.
+    fn seed(&self, conn: &mut Connection, seed_categories: &[CategoryInfo]) -> Result<()> {
+        let seeded = self
             .database
             .metadata_value(conn, "category_seed_version")?;
+        let new_rows: Vec<CategoryInfo> = match seeded {
+            None => seed_categories.to_vec(),
+            Some(value) => match value.trim().parse::<u32>() {
+                Ok(version) if version < CATEGORY_SEED_VERSION => {
+                    crate::csv_io::seed_categories_added_after(version)?
+                }
+                _ => return Ok(()),
+            },
+        };
 
-        if seeded_flag.is_some() {
-            return Ok(());
+        let tx = conn
+            .transaction()
+            .map_err(|err| Error::other(format!("Failed to begin category seed: {}", err)))?;
+        {
+            let mut stmt = tx
+                .prepare(
+                    "
+                    INSERT INTO categories (transaction_type, category, subcategory, tag)
+                    SELECT ?1, ?2, ?3, NULL
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM categories
+                        WHERE transaction_type = ?1
+                          AND LOWER(category) = LOWER(?2)
+                          AND LOWER(subcategory) = LOWER(?3)
+                    )
+                    ",
+                )
+                .map_err(|err| {
+                    Error::other(format!("Failed to prepare category seed insert: {}", err))
+                })?;
+            for category in new_rows {
+                stmt.execute(params![
+                    category.transaction_type.as_str(),
+                    &category.category,
+                    &category.subcategory
+                ])
+                .map_err(|err| Error::other(format!("Failed to seed categories: {}", err)))?;
+            }
         }
-
-        let mut stmt = conn
-            .prepare(
-                "
-                INSERT INTO categories (
-                    transaction_type,
-                    category,
-                    subcategory,
-                    tag
-                ) VALUES (?1, ?2, ?3, NULL)
-                ",
-            )
-            .map_err(|err| {
-                Error::other(format!("Failed to prepare category seed insert: {}", err))
-            })?;
-
-        for category in seed_categories {
-            stmt.execute(params![
-                category.transaction_type.as_str(),
-                &category.category,
-                &category.subcategory
-            ])
-            .map_err(|err| Error::other(format!("Failed to seed categories: {}", err)))?;
-        }
-
-        drop(stmt);
-        self.database
-            .set_metadata_value(conn, "category_seed_version", "1")?;
-
-        Ok(())
+        self.database.set_metadata_value(
+            &tx,
+            "category_seed_version",
+            &CATEGORY_SEED_VERSION.to_string(),
+        )?;
+        tx.commit()
+            .map_err(|err| Error::other(format!("Failed to commit category seed: {}", err)))
     }
 
     fn load_record_by_id(conn: &Connection, id: i64) -> Result<CategoryRecord> {
@@ -115,8 +131,8 @@ impl SqliteCategoryStore {
 
 impl CategoryStore for SqliteCategoryStore {
     fn initialize(&self, seed_categories: &[CategoryInfo]) -> Result<()> {
-        let conn = self.ready_connection()?;
-        self.seed_if_empty(&conn, seed_categories)
+        let mut conn = self.ready_connection()?;
+        self.seed(&mut conn, seed_categories)
     }
 
     fn list(&self) -> Result<Vec<CategoryRecord>> {
@@ -175,6 +191,38 @@ impl CategoryStore for SqliteCategoryStore {
         let mut conn = self.ready_connection()?;
         let previous = Self::load_record_by_id(&conn, id)?;
 
+        let crosses_transfer = previous.transaction_type != draft.transaction_type
+            && (previous.transaction_type == TransactionType::Transfer
+                || draft.transaction_type == TransactionType::Transfer);
+        if crosses_transfer {
+            let used: i64 = conn
+                .query_row(
+                    "
+                    SELECT COUNT(*) FROM transactions
+                    WHERE transaction_type = ?1
+                      AND LOWER(category) = LOWER(?2)
+                      AND LOWER(subcategory) = LOWER(?3)
+                    ",
+                    params![
+                        previous.transaction_type.as_str(),
+                        &previous.category,
+                        &previous.subcategory
+                    ],
+                    |row| row.get(0),
+                )
+                .map_err(|err| Error::other(format!("Failed to check category use: {}", err)))?;
+            if used > 0 {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "{} transaction{} use this category, so its type can't switch to or from Transfer. Convert them to transfers instead.",
+                        used,
+                        if used == 1 { "" } else { "s" }
+                    ),
+                ));
+            }
+        }
+
         let tx = conn
             .transaction()
             .map_err(|err| Error::other(format!("Failed to begin category update: {}", err)))?;
@@ -200,7 +248,7 @@ impl CategoryStore for SqliteCategoryStore {
         .map_err(|err| Error::other(format!("Failed to update category: {}", err)))?;
 
         // Expense-only budgets, and the type is shared by every ledger, so drop them all.
-        if draft.transaction_type == TransactionType::Income {
+        if draft.transaction_type != TransactionType::Expense {
             tx.execute("DELETE FROM budget_periods WHERE category_id = ?1", [id])
                 .map_err(|err| {
                     Error::other(format!("Failed to clear category budgets: {}", err))

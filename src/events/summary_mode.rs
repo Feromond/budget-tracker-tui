@@ -54,6 +54,9 @@ fn handle_category_summary(app: &mut App, key_event: KeyEvent) {
         KeyCode::Char('6') | KeyCode::F(6) => {
             app.set_category_summary_sort_column(CategorySummarySortColumn::Net)
         }
+        KeyCode::Char('7') | KeyCode::F(7) => {
+            app.set_category_summary_sort_column(CategorySummarySortColumn::Transfer)
+        }
         _ => {}
     }
 }

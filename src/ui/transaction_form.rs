@@ -1,5 +1,7 @@
+use crate::app::fields::AddEditField;
 use crate::app::state::{App, AppMode};
-use crate::ui::form::render_field_form;
+use crate::model::TransactionType;
+use crate::ui::form::{FieldOverride, render_field_form};
 use ratatui::prelude::*;
 
 pub fn render_transaction_form(f: &mut Frame, app: &App, area: Rect) {
@@ -9,6 +11,7 @@ pub fn render_transaction_form(f: &mut Frame, app: &App, area: Rect) {
         "Add New Transaction"
     };
 
+    let transfer = app.add_edit_type() == TransactionType::Transfer;
     render_field_form(
         f,
         &app.add_edit_fields,
@@ -16,6 +19,13 @@ pub fn render_transaction_form(f: &mut Frame, app: &App, area: Rect) {
         area,
         title,
         None,
-        |_| None,
+        if transfer {
+            |field| (field == AddEditField::Account).then_some(FieldOverride::Label("From Account"))
+        } else {
+            |field| {
+                (field == AddEditField::ToAccount)
+                    .then_some(FieldOverride::Placeholder("Transfers only"))
+            }
+        },
     );
 }

@@ -68,18 +68,10 @@ pub fn render_transaction_table(f: &mut Frame, app: &mut App, area: Rect) {
         let amount_style = match tx.transaction_type {
             TransactionType::Income => Style::default().fg(Color::LightGreen),
             TransactionType::Expense => Style::default().fg(Color::LightRed),
+            TransactionType::Transfer => Style::default().fg(crate::ui::helpers::TRANSFER_COLOR),
         };
 
-        // Add visual indicators for recurring transactions
-        let description_text = if tx.is_recurring {
-            if tx.is_generated_from_recurring {
-                format!("⟲ {}", tx.description) // Generated from recurring
-            } else {
-                format!("⟲* {}", tx.description) // Original recurring transaction
-            }
-        } else {
-            tx.description.clone()
-        };
+        let description_text = crate::ui::helpers::marked_description(tx);
 
         let amount_cell_text = if app.show_hours {
             format_hours(&tx.amount, app.hourly_rate)
@@ -92,7 +84,7 @@ pub fn render_transaction_table(f: &mut Frame, app: &mut App, area: Rect) {
             Cell::from(description_text),
             Cell::from(tx.category.as_str()),
             Cell::from(tx.subcategory.as_str()),
-            Cell::from(format!("{:?}", tx.transaction_type)),
+            Cell::from(tx.transaction_type.as_str()),
             Cell::from(Line::from(amount_cell_text).alignment(Alignment::Right))
                 .style(amount_style),
         ];
@@ -123,6 +115,16 @@ pub fn render_transaction_table(f: &mut Frame, app: &mut App, area: Rect) {
             format!(": {}", app.active_ledger_name()),
             Style::default().fg(Color::LightGreen),
         ));
+        if app.accounts.several() {
+            let (label, color) = match app.account_scope {
+                Some(_) => (app.account_scope_label(), Color::LightBlue),
+                None => ("All accounts".to_string(), Color::Gray),
+            };
+            spans.push(Span::styled(
+                format!(" · {}", label),
+                Style::default().fg(color),
+            ));
+        }
         if app.recurring_forecast_months > 0 {
             spans.push(Span::styled(
                 format!(" (Forecast +{}mo)", app.recurring_forecast_months),

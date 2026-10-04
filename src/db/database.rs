@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 /// The latest schema version understood by this build. Bump this and add a matching arm in
 /// [`SqliteDatabase::apply_migration`] whenever the schema changes.
-pub const SCHEMA_VERSION: i64 = 5;
+pub const SCHEMA_VERSION: i64 = 6;
 
 #[derive(Debug, Clone)]
 pub struct SqliteDatabase {
@@ -77,12 +77,37 @@ impl SqliteDatabase {
             return Ok(());
         }
 
+        // Disable foreign keys before the transaction so table rebuilds don't cascade deletes.
+        conn.execute_batch("PRAGMA foreign_keys = OFF;")
+            .map_err(|err| Error::other(format!("Failed to pause foreign keys: {}", err)))?;
+        let result = Self::migrate(conn, current);
+        let restored = conn
+            .execute_batch("PRAGMA foreign_keys = ON;")
+            .map_err(|err| Error::other(format!("Failed to restore foreign keys: {}", err)));
+        result.and(restored)
+    }
+
+    fn migrate(conn: &mut Connection, current: i64) -> Result<()> {
         let tx = conn
             .transaction()
             .map_err(|err| Error::other(format!("Failed to begin migration: {}", err)))?;
 
         for version in (current + 1)..=SCHEMA_VERSION {
             Self::apply_migration(&tx, version)?;
+        }
+
+        // Check references before committing while foreign keys are disabled.
+        let broken: i64 = tx
+            .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
+                row.get(0)
+            })
+            .map_err(|err| Error::other(format!("Failed to check foreign keys: {}", err)))?;
+        if broken > 0 {
+            return Err(Error::other(format!(
+                "Migration left {} broken reference{}; nothing was changed.",
+                broken,
+                if broken == 1 { "" } else { "s" }
+            )));
         }
 
         // `user_version` does not accept bound parameters, so format it into the statement.
@@ -244,8 +269,139 @@ impl SqliteDatabase {
                     ",
                 )
                 .map_err(|err| Error::other(format!("Migration v5 failed: {}", err))),
+            6 => Self::migrate_to_accounts(conn),
             _ => Ok(()),
         }
+    }
+
+    fn migrate_to_accounts(conn: &Connection) -> Result<()> {
+        let fail = |err: rusqlite::Error| Error::other(format!("Migration v6 failed: {}", err));
+
+        // Older databases may lack tables needed for the rebuild.
+        conn.execute_batch(
+            "
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY,
+                ledger_id INTEGER NOT NULL DEFAULT 1,
+                date TEXT NOT NULL,
+                description TEXT NOT NULL,
+                amount TEXT NOT NULL,
+                transaction_type TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT 'Uncategorized',
+                subcategory TEXT NOT NULL DEFAULT '',
+                is_recurring INTEGER NOT NULL DEFAULT 0,
+                recurrence_frequency TEXT NULL,
+                recurrence_end_date TEXT NULL
+            );
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY,
+                transaction_type TEXT NOT NULL,
+                category TEXT NOT NULL,
+                subcategory TEXT NOT NULL DEFAULT '',
+                tag TEXT NULL
+            );
+            ",
+        )
+        .map_err(fail)?;
+
+        let counts = || -> Result<Vec<i64>> {
+            ["transactions", "categories", "budget_periods"]
+                .iter()
+                .map(|table| {
+                    conn.query_row(&format!("SELECT COUNT(*) FROM {}", table), [], |row| {
+                        row.get(0)
+                    })
+                    .map_err(fail)
+                })
+                .collect()
+        };
+        let before = counts()?;
+
+        conn.execute_batch(
+            "
+            ALTER TABLE investment_accounts RENAME TO accounts;
+            ALTER TABLE accounts ADD COLUMN class TEXT NOT NULL DEFAULT 'Investment'
+                CHECK (class IN ('Cash', 'Credit', 'Investment'));
+            ALTER TABLE accounts ADD COLUMN opening_balance TEXT NOT NULL DEFAULT '0';
+
+            -- Rows whose ledger is gone get it back instead of being dropped.
+            INSERT INTO ledgers (id, name, position, created_at)
+            SELECT DISTINCT t.ledger_id, 'Recovered ' || t.ledger_id, 1000 + t.ledger_id,
+                   datetime('now')
+            FROM transactions t
+            WHERE NOT EXISTS (SELECT 1 FROM ledgers l WHERE l.id = t.ledger_id);
+
+            INSERT INTO accounts (ledger_id, name, kind, position, archived, class)
+            SELECT l.id,
+                   CASE WHEN EXISTS (
+                       SELECT 1 FROM accounts a WHERE a.ledger_id = l.id AND a.name = 'Main Account'
+                   ) THEN 'Main Account (Cash)' ELSE 'Main Account' END,
+                   '', -1, 0, 'Cash'
+            FROM ledgers l;
+
+            CREATE TABLE categories_v6 (
+                id INTEGER PRIMARY KEY,
+                transaction_type TEXT NOT NULL
+                    CHECK (transaction_type IN ('Income', 'Expense', 'Transfer')),
+                category TEXT NOT NULL,
+                subcategory TEXT NOT NULL DEFAULT '',
+                tag TEXT NULL,
+                UNIQUE(transaction_type, category, subcategory)
+            );
+            INSERT INTO categories_v6 (id, transaction_type, category, subcategory, tag)
+            SELECT id, transaction_type, category, subcategory, tag FROM categories;
+            DROP TABLE categories;
+            ALTER TABLE categories_v6 RENAME TO categories;
+
+            CREATE TABLE transactions_v6 (
+                id INTEGER PRIMARY KEY,
+                ledger_id INTEGER NOT NULL DEFAULT 1,
+                date TEXT NOT NULL,
+                description TEXT NOT NULL,
+                amount TEXT NOT NULL,
+                transaction_type TEXT NOT NULL
+                    CHECK (transaction_type IN ('Income', 'Expense', 'Transfer')),
+                category TEXT NOT NULL DEFAULT 'Uncategorized',
+                subcategory TEXT NOT NULL DEFAULT '',
+                is_recurring INTEGER NOT NULL DEFAULT 0,
+                recurrence_frequency TEXT NULL,
+                recurrence_end_date TEXT NULL,
+                account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE RESTRICT,
+                to_account_id INTEGER NULL REFERENCES accounts(id) ON DELETE RESTRICT,
+                CHECK ((transaction_type = 'Transfer') = (to_account_id IS NOT NULL)),
+                CHECK (to_account_id IS NULL OR to_account_id != account_id)
+            );
+            INSERT INTO transactions_v6 (
+                id, ledger_id, date, description, amount, transaction_type, category,
+                subcategory, is_recurring, recurrence_frequency, recurrence_end_date, account_id
+            )
+            SELECT t.id, t.ledger_id, t.date, t.description, t.amount, t.transaction_type,
+                   t.category, t.subcategory, t.is_recurring, t.recurrence_frequency,
+                   t.recurrence_end_date,
+                   (SELECT a.id FROM accounts a
+                    WHERE a.ledger_id = t.ledger_id AND a.class = 'Cash'
+                    ORDER BY a.position, a.id LIMIT 1)
+            FROM transactions t;
+            DROP TABLE transactions;
+            ALTER TABLE transactions_v6 RENAME TO transactions;
+            CREATE INDEX idx_transactions_date ON transactions(date);
+            CREATE INDEX idx_transactions_ledger_date ON transactions(ledger_id, date);
+            CREATE INDEX idx_transactions_account ON transactions(account_id);
+            CREATE INDEX idx_transactions_to_account ON transactions(to_account_id)
+                WHERE to_account_id IS NOT NULL;
+            ",
+        )
+        .map_err(fail)?;
+        Self::drop_column(conn, "investment_entries", "transaction_id")?;
+
+        let after = counts()?;
+        if before != after {
+            return Err(Error::other(format!(
+                "Migration v6 changed row counts (transactions, categories, budgets) from {:?} to {:?}; nothing was changed.",
+                before, after
+            )));
+        }
+        Ok(())
     }
 
     /// Drop a column if it is still present, so re-running the migration is harmless.

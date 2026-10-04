@@ -4,6 +4,8 @@ use std::io::{Error, ErrorKind, Result};
 
 const ACTIVE_LEDGER_KEY: &str = "active_ledger_id";
 const DEFAULT_LEDGER_NAME: &str = "Main";
+/// Must match the default account name in migration v6.
+const DEFAULT_ACCOUNT_NAME: &str = "Main Account";
 
 /// The ledger seeded by migration v3, which every pre-existing transaction is attributed to.
 pub const DEFAULT_LEDGER_ID: i64 = 1;
@@ -102,15 +104,33 @@ impl SqliteLedgerStore {
             position,
         })
     }
+
+    fn create_empty(conn: &mut Connection, name: &str) -> Result<LedgerRecord> {
+        let tx = conn
+            .transaction()
+            .map_err(|err| Error::other(format!("Failed to begin ledger create: {}", err)))?;
+        let ledger = Self::create_with_conn(&tx, name)?;
+        tx.execute(
+            "
+            INSERT INTO accounts (ledger_id, name, kind, position, archived, class)
+            VALUES (?1, ?2, '', 0, 0, 'Cash')
+            ",
+            params![ledger.id, DEFAULT_ACCOUNT_NAME],
+        )
+        .map_err(|err| Error::other(format!("Failed to create the ledger's account: {}", err)))?;
+        tx.commit()
+            .map_err(|err| Error::other(format!("Failed to commit ledger create: {}", err)))?;
+        Ok(ledger)
+    }
 }
 
 impl LedgerStore for SqliteLedgerStore {
     fn initialize(&self) -> Result<LedgerSelection> {
-        let conn = self.ready_connection()?;
+        let mut conn = self.ready_connection()?;
 
         let mut ledgers = Self::list_with_conn(&conn)?;
         if ledgers.is_empty() {
-            ledgers.push(Self::create_with_conn(&conn, DEFAULT_LEDGER_NAME)?);
+            ledgers.push(Self::create_empty(&mut conn, DEFAULT_LEDGER_NAME)?);
         }
 
         let stored_id = self
@@ -135,8 +155,8 @@ impl LedgerStore for SqliteLedgerStore {
     }
 
     fn create(&self, name: &str) -> Result<LedgerRecord> {
-        let conn = self.ready_connection()?;
-        Self::create_with_conn(&conn, name)
+        let mut conn = self.ready_connection()?;
+        Self::create_empty(&mut conn, name)
     }
 
     fn copy(&self, source_id: i64, name: &str) -> Result<LedgerRecord> {
@@ -146,6 +166,33 @@ impl LedgerStore for SqliteLedgerStore {
             .map_err(|err| Error::other(format!("Failed to begin ledger copy: {}", err)))?;
 
         let ledger = Self::create_with_conn(&tx, name)?;
+
+        // Accounts first so everything else can be remapped to the new ids.
+        tx.execute(
+            "
+            INSERT INTO accounts (ledger_id, name, kind, position, archived, class, opening_balance)
+            SELECT ?1, name, kind, position, archived, class, opening_balance
+            FROM accounts
+            WHERE ledger_id = ?2
+            ",
+            params![ledger.id, source_id],
+        )
+        .map_err(|err| Error::other(format!("Failed to copy accounts: {}", err)))?;
+
+        tx.execute(
+            "
+            INSERT INTO investment_entries (account_id, date, entry_kind, amount, note)
+            SELECT copy.id, e.date, e.entry_kind, e.amount, e.note
+            FROM investment_entries e
+            JOIN accounts source ON source.id = e.account_id
+            JOIN accounts copy
+                ON copy.ledger_id = ?1 AND copy.name = source.name
+            WHERE source.ledger_id = ?2
+            ",
+            params![ledger.id, source_id],
+        )
+        .map_err(|err| Error::other(format!("Failed to copy investment entries: {}", err)))?;
+
         tx.execute(
             "
             INSERT INTO transactions (
@@ -158,21 +205,31 @@ impl LedgerStore for SqliteLedgerStore {
                 subcategory,
                 is_recurring,
                 recurrence_frequency,
-                recurrence_end_date
+                recurrence_end_date,
+                account_id,
+                to_account_id
             )
             SELECT
                 ?1,
-                date,
-                description,
-                amount,
-                transaction_type,
-                category,
-                subcategory,
-                is_recurring,
-                recurrence_frequency,
-                recurrence_end_date
-            FROM transactions
-            WHERE ledger_id = ?2
+                t.date,
+                t.description,
+                t.amount,
+                t.transaction_type,
+                t.category,
+                t.subcategory,
+                t.is_recurring,
+                t.recurrence_frequency,
+                t.recurrence_end_date,
+                copy.id,
+                to_copy.id
+            FROM transactions t
+            JOIN accounts source ON source.id = t.account_id
+            JOIN accounts copy ON copy.ledger_id = ?1 AND copy.name = source.name
+            LEFT JOIN accounts to_source ON to_source.id = t.to_account_id
+            LEFT JOIN accounts to_copy
+                ON to_copy.ledger_id = ?1 AND to_copy.name = to_source.name
+            WHERE t.ledger_id = ?2
+            ORDER BY t.id
             ",
             params![ledger.id, source_id],
         )
@@ -189,33 +246,6 @@ impl LedgerStore for SqliteLedgerStore {
             params![ledger.id, source_id],
         )
         .map_err(|err| Error::other(format!("Failed to copy budgets: {}", err)))?;
-
-        // Accounts first, then their entries remapped onto the new ids.
-        tx.execute(
-            "
-            INSERT INTO investment_accounts (ledger_id, name, kind, position, archived)
-            SELECT ?1, name, kind, position, archived
-            FROM investment_accounts
-            WHERE ledger_id = ?2
-            ",
-            params![ledger.id, source_id],
-        )
-        .map_err(|err| Error::other(format!("Failed to copy investment accounts: {}", err)))?;
-
-        tx.execute(
-            "
-            INSERT INTO investment_entries
-                (account_id, date, entry_kind, amount, note, transaction_id)
-            SELECT copy.id, e.date, e.entry_kind, e.amount, e.note, e.transaction_id
-            FROM investment_entries e
-            JOIN investment_accounts source ON source.id = e.account_id
-            JOIN investment_accounts copy
-                ON copy.ledger_id = ?1 AND copy.name = source.name
-            WHERE source.ledger_id = ?2
-            ",
-            params![ledger.id, source_id],
-        )
-        .map_err(|err| Error::other(format!("Failed to copy investment entries: {}", err)))?;
 
         tx.commit()
             .map_err(|err| Error::other(format!("Failed to commit ledger copy: {}", err)))?;
@@ -277,15 +307,13 @@ impl LedgerStore for SqliteLedgerStore {
         tx.execute(
             "
             DELETE FROM investment_entries
-            WHERE account_id IN (SELECT id FROM investment_accounts WHERE ledger_id = ?1)
+            WHERE account_id IN (SELECT id FROM accounts WHERE ledger_id = ?1)
             ",
             [id],
         )
         .map_err(|err| Error::other(format!("Failed to delete investment entries: {}", err)))?;
-        tx.execute("DELETE FROM investment_accounts WHERE ledger_id = ?1", [id])
-            .map_err(|err| {
-                Error::other(format!("Failed to delete investment accounts: {}", err))
-            })?;
+        tx.execute("DELETE FROM accounts WHERE ledger_id = ?1", [id])
+            .map_err(|err| Error::other(format!("Failed to delete accounts: {}", err)))?;
         let deleted = tx
             .execute("DELETE FROM ledgers WHERE id = ?1", [id])
             .map_err(|err| Error::other(format!("Failed to delete ledger: {}", err)))?;
@@ -314,7 +342,7 @@ impl LedgerStore for SqliteLedgerStore {
     fn investment_account_count(&self, id: i64) -> Result<i64> {
         let conn = self.ready_connection()?;
         conn.query_row(
-            "SELECT COUNT(*) FROM investment_accounts WHERE ledger_id = ?1",
+            "SELECT COUNT(*) FROM accounts WHERE ledger_id = ?1 AND class = 'Investment'",
             [id],
             |row| row.get(0),
         )

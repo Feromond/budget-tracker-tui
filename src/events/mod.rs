@@ -1,3 +1,4 @@
+mod account_manager_mode;
 mod add_edit_mode;
 mod backup_mode;
 mod budget_mode;

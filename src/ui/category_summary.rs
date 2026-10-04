@@ -1,6 +1,6 @@
 use crate::app::state::{App, CategorySummaryItem};
 use crate::model::{CategorySummarySortColumn, MonthlySummary, SortOrder, TransactionType};
-use crate::ui::helpers::{clamp_table_scroll, format_amount, month_to_short_str};
+use crate::ui::helpers::{TRANSFER_COLOR, clamp_table_scroll, format_amount, month_to_short_str};
 use ratatui::prelude::*;
 use ratatui::text::Line;
 use ratatui::widgets::*;
@@ -8,25 +8,30 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 use std::collections::HashMap;
 
-fn cell_income(amount: Decimal, bold: bool) -> Cell<'static> {
+fn cell_amount(amount: Decimal, color: Color, bold: bool) -> Cell<'static> {
     if amount.round_dp(2).is_zero() {
         return Cell::from("");
     }
-    let mut style = Style::default().fg(Color::LightGreen);
+    let mut style = Style::default().fg(color);
     if bold {
         style = style.add_modifier(Modifier::BOLD);
     }
     Cell::from(Line::from(format_amount(&amount)).alignment(Alignment::Right)).style(style)
 }
+fn cell_income(amount: Decimal, bold: bool) -> Cell<'static> {
+    cell_amount(amount, Color::LightGreen, bold)
+}
 fn cell_expense(amount: Decimal, bold: bool) -> Cell<'static> {
-    if amount.round_dp(2).is_zero() {
+    cell_amount(amount, Color::LightRed, bold)
+}
+fn cell_transfer(amount: Decimal, bold: bool) -> Cell<'static> {
+    cell_amount(amount, TRANSFER_COLOR, bold)
+}
+fn cell_net_of(summary: &MonthlySummary, bold: bool) -> Cell<'static> {
+    if summary.income.is_zero() && summary.expense.is_zero() {
         return Cell::from("");
     }
-    let mut style = Style::default().fg(Color::LightRed);
-    if bold {
-        style = style.add_modifier(Modifier::BOLD);
-    }
-    Cell::from(Line::from(format_amount(&amount)).alignment(Alignment::Right)).style(style)
+    cell_net(summary.income - summary.expense, bold)
 }
 fn cell_net(net: Decimal, bold: bool) -> Cell<'static> {
     let s = if net >= Decimal::ZERO {
@@ -46,12 +51,7 @@ fn cell_net(net: Decimal, bold: bool) -> Cell<'static> {
 }
 
 // Dim these amounts because they are already included in the total above.
-fn cell_detail_amount(amount: Decimal, income: bool) -> Cell<'static> {
-    let color = if income {
-        Color::LightGreen
-    } else {
-        Color::LightRed
-    };
+fn cell_detail_amount(amount: Decimal, color: Color) -> Cell<'static> {
     Cell::from(Line::from(format_amount(&amount)).alignment(Alignment::Right))
         .style(Style::default().fg(color).add_modifier(Modifier::DIM))
 }
@@ -86,6 +86,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
         "Income",
         "Expense",
         "Net",
+        "Transfer",
     ];
     let sort_columns = [
         CategorySummarySortColumn::Month,
@@ -94,6 +95,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
         CategorySummarySortColumn::Income,
         CategorySummarySortColumn::Expense,
         CategorySummarySortColumn::Net,
+        CategorySummarySortColumn::Transfer,
     ];
     let header_cells = header_titles.iter().enumerate().map(|(i, h)| {
         let symbol = if app.category_summary_sort_by == sort_columns[i] {
@@ -110,6 +112,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
                 3 => Style::default().fg(Color::LightGreen).bold(), // Income
                 4 => Style::default().fg(Color::LightRed).bold(),   // Expense
                 5 => Style::default().fg(Color::LightBlue).bold(),  // Net
+                6 => Style::default().fg(TRANSFER_COLOR).bold(),
                 _ => Style::default().fg(Color::Cyan).bold(),
             };
             (Line::from(title).alignment(Alignment::Right), s)
@@ -149,7 +152,9 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
         months = app.sorted_category_months_for_year(year);
     }
 
-    let (total_income, total_expense) = crate::app::util::calculate_totals(app, current_year);
+    let totals = crate::app::util::calculate_totals(app, current_year);
+    let (total_income, total_expense, total_transferred) =
+        (totals.income, totals.expense, totals.transferred);
 
     let selected_row = app.category_summary_table_state.selected();
     let today = chrono::Local::now().date_naive();
@@ -179,7 +184,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
                 }
                 let inc_cell = cell_income(summary.income, true);
                 let exp_cell = cell_expense(summary.expense, true);
-                let net_cell = cell_net(summary.income - summary.expense, true);
+                let net_cell = cell_net_of(summary, true);
                 Row::new(vec![
                     month_cell,
                     Cell::from(""),
@@ -187,6 +192,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
                     inc_cell,
                     exp_cell,
                     net_cell,
+                    cell_transfer(summary.transferred, true),
                 ])
                 .height(1)
                 .bottom_margin(0)
@@ -226,7 +232,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
                 let display_sub = if sub.is_empty() { "Uncategorized" } else { sub };
                 let inc_cell = cell_income(summary.income, false);
                 let exp_cell = cell_expense(summary.expense, false);
-                let net_cell = cell_net(summary.income - summary.expense, false);
+                let net_cell = cell_net_of(summary, false);
                 Row::new(vec![
                     first_cell,
                     Cell::from(category.clone()),
@@ -234,6 +240,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
                     inc_cell,
                     exp_cell,
                     net_cell,
+                    cell_transfer(summary.transferred, false),
                 ])
                 .height(1)
                 .bottom_margin(0)
@@ -261,42 +268,40 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
                     "├─ "
                 };
 
-                let description = if tx.is_recurring {
-                    if tx.is_generated_from_recurring {
-                        format!("⟲ {}", tx.description)
-                    } else {
-                        format!("⟲* {}", tx.description)
-                    }
-                } else {
-                    tx.description.clone()
-                };
+                let description = crate::ui::helpers::marked_description(tx);
 
-                let (inc_cell, exp_cell) = match tx.transaction_type {
-                    TransactionType::Income => {
-                        (cell_detail_amount(tx.amount, true), Cell::from(""))
-                    }
-                    TransactionType::Expense => {
-                        (Cell::from(""), cell_detail_amount(tx.amount, false))
-                    }
-                };
-
-                let row = Row::new(vec![
-                    Cell::from(Span::styled(month_guide, Style::default().fg(arrow_color))),
-                    Cell::from(Line::from(vec![
-                        Span::styled(
-                            format!("  {}", branch),
-                            Style::default().fg(arrow_color).add_modifier(Modifier::DIM),
-                        ),
-                        Span::styled(
-                            tx.date.format("%b %d (%a)").to_string(),
-                            Style::default().fg(Color::Gray),
-                        ),
-                    ])),
-                    Cell::from(description),
-                    inc_cell,
-                    exp_cell,
+                let mut amounts = [
                     Cell::from(""),
-                ])
+                    Cell::from(""),
+                    Cell::from(""),
+                    Cell::from(""),
+                ];
+                let (column, color) = match tx.transaction_type {
+                    TransactionType::Income => (0, Color::LightGreen),
+                    TransactionType::Expense => (1, Color::LightRed),
+                    TransactionType::Transfer => (3, TRANSFER_COLOR),
+                };
+                amounts[column] = cell_detail_amount(tx.amount, color);
+
+                let row = Row::new(
+                    vec![
+                        Cell::from(Span::styled(month_guide, Style::default().fg(arrow_color))),
+                        Cell::from(Line::from(vec![
+                            Span::styled(
+                                format!("  {}", branch),
+                                Style::default().fg(arrow_color).add_modifier(Modifier::DIM),
+                            ),
+                            Span::styled(
+                                tx.date.format("%b %d (%a)").to_string(),
+                                Style::default().fg(Color::Gray),
+                            ),
+                        ])),
+                        Cell::from(description),
+                    ]
+                    .into_iter()
+                    .chain(amounts)
+                    .collect::<Vec<_>>(),
+                )
                 .height(1)
                 .bottom_margin(0);
                 if tx.is_generated_from_recurring && tx.date > today {
@@ -331,6 +336,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
         total_inc_cell,
         total_exp_cell,
         total_net_cell,
+        cell_transfer(total_transferred, true),
     ])
     .height(1)
     .bottom_margin(0)
@@ -373,10 +379,11 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
         rows,
         [
             Constraint::Length(7),
-            Constraint::Percentage(30),
-            Constraint::Percentage(30),
-            Constraint::Percentage(12),
-            Constraint::Percentage(12),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+            Constraint::Percentage(11),
+            Constraint::Percentage(11),
+            Constraint::Percentage(11),
             Constraint::Percentage(11),
         ],
     )
@@ -392,10 +399,11 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
         vec![total_row],
         [
             Constraint::Length(12),
-            Constraint::Percentage(23),
-            Constraint::Percentage(30),
-            Constraint::Percentage(12),
-            Constraint::Percentage(12),
+            Constraint::Percentage(18),
+            Constraint::Percentage(25),
+            Constraint::Percentage(11),
+            Constraint::Percentage(11),
+            Constraint::Percentage(11),
             Constraint::Percentage(11),
         ],
     );
@@ -430,6 +438,7 @@ pub fn render_category_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
 
         let mut category_data_for_chart: Vec<(String, Decimal)> = category_totals
             .into_iter()
+            .filter(|(_, summary)| !(summary.income.is_zero() && summary.expense.is_zero()))
             .map(|(cat, summary)| {
                 let net_balance = summary.income - summary.expense;
                 (cat, net_balance)

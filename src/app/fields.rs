@@ -170,9 +170,11 @@ form_fields! {
             "(◀/▶ or +/- for days, Shift+◀/▶ for months, Digits to enter)";
         Description => FieldKind::Text, "Description";
         Amount => FieldKind::Amount, "Amount";
-        TransactionType => FieldKind::Toggle, "Type", "(◀/▶ or Enter to toggle)";
+        TransactionType => FieldKind::Toggle, "Type", "(◀/▶ or Enter to cycle)";
         Category => FieldKind::Selection, "Category", "(Enter to select)";
         Subcategory => FieldKind::Selection, "Subcategory", "(Enter to select)";
+        Account => FieldKind::Selection, "Account", "(Enter to select)";
+        ToAccount => FieldKind::Selection, "To Account", "(Enter to select)";
     }
 }
 
@@ -223,6 +225,18 @@ form_fields! {
             "(Optional - defaults to the starting value)";
         OpeningDate => FieldKind::Date, "As Of (YYYY-MM-DD)",
             "(◀/▶ or +/- for days, Shift+◀/▶ for months)";
+    }
+}
+
+form_fields! {
+    pub enum AccountField {
+        Name => FieldKind::Text, "Account Name";
+        Class => FieldKind::Toggle, "Class",
+            "(◀/▶: Cash for chequing and savings, Credit for cards and loans)";
+        Kind => FieldKind::Text, "Type", "(Optional - e.g. Chequing, Visa, Brokerage)";
+        OpeningBalance => FieldKind::Amount, "Opening Balance",
+            "(Optional - before your first recorded transaction)";
+        Status => FieldKind::Toggle, "Status", "(◀/▶ to toggle)";
     }
 }
 

@@ -1,4 +1,4 @@
-Type,Category,Subcategory
+Type,Category,Subcategory,Since
 Income,Salary / Wages,Full-time Job
 Income,Salary / Wages,Part-time Job
 Income,Salary / Wages,Overtime
@@ -96,9 +96,6 @@ Expense,Education,Tuition
 Expense,Education,Student Loan Payments
 Expense,Education,Books & Supplies
 Expense,Education,Courses / Certifications
-Expense,Debt Payments,Credit Card Payments
-Expense,Debt Payments,Loan Payments
-Expense,Debt Payments,Line of Credit Payments
 Expense,Shopping,Clothing
 Expense,Shopping,Electronics
 Expense,Shopping,Gifts
@@ -136,7 +133,25 @@ Expense,Pets,Pet Insurance
 Expense,Pets,Pet Grooming
 Expense,Pets,Pet Sitting / Boarding
 Expense,Pets,Pet Toys / Accessories
-Expense,Savings & Investments,Retirement
-Expense,Savings & Investments,Crypto
-Expense,Savings & Investments,Personal Savings/Investments
-Expense,Savings & Investments,Emergency Fund
+Expense,Debt Payments,Interest Charges,2
+Expense,Debt Payments,Fees & Penalties,2
+Transfer,Savings & Investments,Retirement,2
+Transfer,Savings & Investments,Tax-Free Savings,2
+Transfer,Savings & Investments,Education Savings,2
+Transfer,Savings & Investments,Brokerage,2
+Transfer,Savings & Investments,Crypto,2
+Transfer,Savings & Investments,Emergency Fund,2
+Transfer,Savings & Investments,General Savings,2
+Transfer,Savings & Investments,Goal Savings,2
+Transfer,Debt Payments,Credit Card Payments,2
+Transfer,Debt Payments,Line of Credit Payments,2
+Transfer,Debt Payments,Mortgage Principal,2
+Transfer,Debt Payments,Car Loan,2
+Transfer,Debt Payments,Student Loan,2
+Transfer,Debt Payments,Personal Loan,2
+Transfer,Account Transfers,Between Accounts,2
+Transfer,Account Transfers,Cash Withdrawal,2
+Transfer,Account Transfers,Cash Deposit,2
+Transfer,Borrowing,Loan Proceeds,2
+Transfer,Borrowing,Cash Advance,2
+Transfer,Borrowing,Balance Transfer,2

@@ -52,6 +52,17 @@ impl App {
                     field.kind(),
                 ))
             }
+            AppMode::AccountEditor => {
+                let field = self.account_fields.focused();
+                if !field.kind().is_editable() {
+                    return None;
+                }
+                Some((
+                    &mut self.account_fields[field],
+                    &mut self.account_cursor,
+                    field.kind(),
+                ))
+            }
             AppMode::InvestmentEntryEditor => {
                 let field = self.investment_entry_fields.focused();
                 if !field.kind().is_editable() {

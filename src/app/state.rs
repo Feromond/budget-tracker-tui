@@ -1,15 +1,15 @@
 use crate::app::fields::{
-    AddEditField, AdvancedFilterField, CategoryEditField, FieldSet, InvestmentAccountField,
-    InvestmentEntryField, RecurringField, SelectingField,
+    AccountField, AddEditField, AdvancedFilterField, CategoryEditField, FieldSet,
+    InvestmentAccountField, InvestmentEntryField, RecurringField, SelectingField,
 };
 use crate::app::update_checker;
 use crate::config::{AppSettings, load_settings, save_settings};
 use crate::csv_io::{load_seed_categories, load_transactions};
+use crate::db::account_store::{AccountStore, SqliteAccountStore};
 use crate::db::backup::{self, BackupEntry, BackupKind};
 use crate::db::budget_store::{BudgetStore, SqliteBudgetStore};
 use crate::db::category_store::{CategoryStore, SqliteCategoryStore};
 use crate::db::database::{SCHEMA_VERSION, SqliteDatabase};
-use crate::db::investment_store::{InvestmentStore, SqliteInvestmentStore};
 use crate::db::ledger_store::{DEFAULT_LEDGER_ID, LedgerRecord, LedgerStore, SqliteLedgerStore};
 use crate::db::transaction_store::{SqliteTransactionStore, TransactionStore};
 use crate::model::*;
@@ -54,6 +54,12 @@ pub enum AppMode {
     CategoryCatalogFilter,
     CategoryEditor,
     ConfirmCategoryDelete,
+    SelectingConversionAccount,
+    ConfirmCategoryConversion,
+    SelectingAccountScope,
+    AccountManager,
+    AccountEditor,
+    ConfirmAccountDelete,
     ImportTransactions,
     ExportTransactions,
     LedgerManager,
@@ -123,7 +129,7 @@ pub struct App {
     pub(crate) mode: AppMode,
     pub(crate) simple_filter_content: String,
     pub(crate) simple_filter_cursor: usize,
-    pub(crate) add_edit_fields: FieldSet<AddEditField, 6>,
+    pub(crate) add_edit_fields: FieldSet<AddEditField, 8>,
     pub(crate) add_edit_cursor: usize,
     pub(crate) advanced_filter_fields: FieldSet<AdvancedFilterField, 9>,
     pub(crate) advanced_filter_cursor: usize,
@@ -182,6 +188,7 @@ pub struct App {
     pub(crate) category_edit_cursor: usize,
     pub(crate) editing_category_id: Option<i64>,
     pub(crate) category_delete_id: Option<i64>,
+    pub(crate) category_conversion: Option<crate::app::category_conversion::CategoryConversion>,
     // Mode to return to when leaving the category catalog (Settings or Budget)
     pub(crate) category_catalog_origin: AppMode,
     // Ledger manager state
@@ -198,6 +205,15 @@ pub struct App {
     pub(crate) backups_enabled: bool,
     pub(crate) backup_keep: u32,
     pub(crate) backup_instance_id: String,
+    pub(crate) accounts: Accounts,
+    pub(crate) account_scope: Option<i64>,
+    pub(crate) account_manager_origin: AppMode,
+    pub(crate) account_table_state: TableState,
+    pub(crate) account_fields: FieldSet<AccountField, 5>,
+    pub(crate) account_cursor: usize,
+    pub(crate) editing_account_id: Option<i64>,
+    pub(crate) account_delete_id: Option<i64>,
+    pub(crate) account_delete_prompt: String,
     // Investments
     pub(crate) portfolio: Portfolio,
     pub(crate) investment_table_state: TableState,
@@ -446,6 +462,7 @@ impl App {
             category_edit_cursor: 0,
             editing_category_id: None,
             category_delete_id: None,
+            category_conversion: None,
             category_catalog_origin: AppMode::Settings,
             ledger_table_state: TableState::default(),
             ledger_name_input: String::new(),
@@ -460,6 +477,15 @@ impl App {
             backups_enabled,
             backup_keep,
             backup_instance_id,
+            accounts: Accounts::default(),
+            account_scope: None,
+            account_manager_origin: AppMode::Settings,
+            account_table_state: TableState::default(),
+            account_fields: Default::default(),
+            account_cursor: 0,
+            editing_account_id: None,
+            account_delete_id: None,
+            account_delete_prompt: String::new(),
             portfolio: Portfolio::default(),
             investment_table_state: TableState::default(),
             investment_entry_table_state: TableState::default(),
@@ -511,9 +537,6 @@ impl App {
         {
             app.status_message = Some(format!("Budget load error: {}", err));
         }
-        if let Err(err) = app.reload_portfolio() {
-            app.status_message = Some(format!("Investment load error: {}", err));
-        }
         app.calculate_monthly_summaries();
         app.calculate_category_summaries();
         app.refresh_budget_years();
@@ -526,6 +549,9 @@ impl App {
 
         // Generate recurring transactions up to today (or the configured forecast horizon)
         app.generate_recurring_transactions();
+        if let Err(err) = app.reload_accounts() {
+            app.status_message = Some(format!("Account load error: {}", err));
+        }
 
         app
     }
@@ -654,16 +680,33 @@ impl App {
         SqliteBudgetStore::new(SqliteDatabase::new(&self.database_path))
     }
 
-    pub(crate) fn investment_store(&self) -> SqliteInvestmentStore {
-        SqliteInvestmentStore::new(
+    pub(crate) fn account_store(&self) -> SqliteAccountStore {
+        SqliteAccountStore::new(
             SqliteDatabase::new(&self.database_path),
             self.active_ledger_id,
         )
     }
 
-    pub(crate) fn reload_portfolio(&mut self) -> Result<(), Error> {
-        let store = self.investment_store();
-        self.portfolio = Portfolio::new(store.list_accounts()?, store.list_entries()?);
+    /// Reload transactions first; transfer entries are derived from them.
+    pub(crate) fn reload_accounts(&mut self) -> Result<(), Error> {
+        let store = self.account_store();
+        self.accounts = Accounts::new(store.list_accounts()?);
+        if self
+            .account_scope
+            .is_some_and(|id| self.accounts.get(id).is_none())
+        {
+            self.account_scope = None;
+            self.refresh_filter();
+        }
+        let today = chrono::Local::now().date_naive();
+        let mut entries = store.list_entries()?;
+        entries.extend(
+            self.transactions
+                .iter()
+                .filter(|tx| tx.date <= today)
+                .flat_map(InvestmentEntry::transfer_flows),
+        );
+        self.portfolio = Portfolio::new(self.accounts.investments(), entries);
         Ok(())
     }
 
@@ -755,7 +798,7 @@ impl App {
         self.transactions = self.transaction_store().list()?;
         // Re-derives generated occurrences and recomputes sort/filter/summaries.
         self.generate_recurring_transactions();
-        Ok(())
+        self.reload_accounts()
     }
 
     pub(crate) fn reset_table_selection(&mut self) {
@@ -771,7 +814,6 @@ impl App {
     pub(crate) fn reload_working_set(&mut self) -> Result<(), Error> {
         self.reload_categories_from_store()?;
         self.reload_transactions_from_db()?;
-        self.reload_portfolio()?;
         self.refresh_budget_years();
         self.reset_table_selection();
         Ok(())
@@ -785,6 +827,7 @@ impl App {
             self.active_ledger_id = ledger_id;
         }
         self.clear_all_filter_fields();
+        self.account_scope = None;
         self.reload_working_set()
     }
 
@@ -818,10 +861,15 @@ impl App {
         let mut status = None;
         if data_file_path.exists() {
             // Only real rows are imported; generated occurrences are re-derived from sources.
+            let accounts = Accounts::new(
+                SqliteAccountStore::new(database.clone(), ledger_id).list_accounts()?,
+            );
             let real_rows: Vec<Transaction> = load_transactions(data_file_path)?
-                .into_iter()
-                .filter(|tx| !tx.is_generated_from_recurring)
-                .collect();
+                .iter()
+                .filter(|row| !row.is_generated_from_recurring)
+                .map(|row| accounts.link_csv(row))
+                .collect::<Result<_, _>>()
+                .map_err(|msg| Error::new(ErrorKind::InvalidData, msg))?;
 
             if !real_rows.is_empty() {
                 let store = SqliteTransactionStore::new(database.clone(), ledger_id);
@@ -1053,11 +1101,10 @@ impl App {
             if let Some(tx) = self.transactions.get(idx) {
                 let year = tx.date.year();
                 let month = tx.date.month();
-                let summary = self.monthly_summaries.entry((year, month)).or_default();
-                match tx.transaction_type {
-                    TransactionType::Income => summary.income += tx.amount,
-                    TransactionType::Expense => summary.expense += tx.amount,
-                }
+                self.monthly_summaries
+                    .entry((year, month))
+                    .or_default()
+                    .add(tx);
                 if !years.contains(&year) {
                     years.push(year);
                 }
@@ -1087,13 +1134,10 @@ impl App {
             years.insert(year);
             let (final_category, subcategory_key) = crate::app::util::category_summary_keys(tx);
             let month_map = self.category_summaries.entry((year, month)).or_default();
-            let summary = month_map
+            month_map
                 .entry((final_category.to_string(), subcategory_key.to_string()))
-                .or_default();
-            match tx.transaction_type {
-                TransactionType::Income => summary.income += tx.amount,
-                TransactionType::Expense => summary.expense += tx.amount,
-            }
+                .or_default()
+                .add(tx);
         }
         self.category_summary_years = years.into_iter().collect();
         self.category_summary_years.sort_unstable();
@@ -1192,15 +1236,7 @@ impl App {
             self.sort_order = SortOrder::Ascending;
         }
 
-        // Preserve the current filter type when sorting
-        // Check if any advanced filter fields are active
-        let has_advanced_filters = !self.advanced_filter_fields.all_empty();
-
-        if has_advanced_filters {
-            self.apply_advanced_filter();
-        } else {
-            self.apply_filter();
-        }
+        self.refresh_filter();
     }
 
     pub fn set_status_message<S: Into<String>>(&mut self, message: S, duration: Option<Duration>) {

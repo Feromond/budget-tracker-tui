@@ -55,21 +55,11 @@ impl TypeToSelect {
     }
 }
 
-/// Calculates the total income and expenses for the current filter view,
-/// optionally filtered by a specific year.
-///
-/// # Arguments
-///
-/// * `app` - The application state containing transactions and filtered indices.
-/// * `year_filter` - Optional year to filter transactions by. If None, includes all filtered transactions.
-///
-/// # Returns
-///
-/// A tuple `(total_income, total_expense)`
+/// Totals for the current selection, optionally limited to a year.
 pub fn calculate_totals(
     app: &crate::app::state::App,
     year_filter: Option<i32>,
-) -> (Decimal, Decimal) {
+) -> crate::model::MonthlySummary {
     app.filtered_indices
         .iter()
         .filter_map(|&idx| app.transactions.get(idx))
@@ -80,12 +70,19 @@ pub fn calculate_totals(
                 None => true,
             }
         })
-        .fold((Decimal::ZERO, Decimal::ZERO), |(inc, exp), tx| {
-            match tx.transaction_type {
-                crate::model::TransactionType::Income => (inc + tx.amount, exp),
-                crate::model::TransactionType::Expense => (inc, exp + tx.amount),
-            }
+        .fold(crate::model::MonthlySummary::default(), |mut totals, tx| {
+            totals.add(tx);
+            totals
         })
+}
+
+pub fn cycle<T: Copy + PartialEq>(options: &[T], current: T, forward: bool) -> T {
+    let index = options
+        .iter()
+        .position(|option| *option == current)
+        .unwrap_or(0);
+    let step = if forward { 1 } else { options.len() - 1 };
+    options[(index + step) % options.len()]
 }
 
 /// The `(category, subcategory)` a transaction is aggregated under in the category summary.

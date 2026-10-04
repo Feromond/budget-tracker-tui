@@ -1,3 +1,4 @@
+pub mod account_manager;
 pub mod backup;
 pub mod budget;
 pub mod category_manager;
@@ -61,6 +62,8 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             | AppMode::CategoryCatalogFilter
             | AppMode::CategoryEditor
             | AppMode::ConfirmCategoryDelete
+            | AppMode::SelectingConversionAccount
+            | AppMode::ConfirmCategoryConversion
             | AppMode::Adding
             | AppMode::Editing
             | AppMode::FuzzyFinding
@@ -74,6 +77,9 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             | AppMode::ExportTransactions
             | AppMode::LedgerManager
             | AppMode::LedgerEditor
+            | AppMode::AccountManager
+            | AppMode::AccountEditor
+            | AppMode::ConfirmAccountDelete
             | AppMode::ConfirmLedgerDelete
             | AppMode::BackupManager
             | AppMode::ConfirmBackupRestore
@@ -121,6 +127,10 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
         AppMode::Adding | AppMode::Editing => {
             transaction_form::render_transaction_form(f, app, main_area);
         }
+        AppMode::SelectingAccountScope => {
+            transaction_table::render_transaction_table(f, app, main_area);
+            dialog::render_selection_popup(f, app, main_area);
+        }
         AppMode::ConfirmDelete => {
             transaction_table::render_transaction_table(f, app, main_area);
             dialog::render_confirmation_dialog(f, "Confirm Delete? (y/n)", main_area);
@@ -160,6 +170,19 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             category_manager::render_category_catalog(f, app, main_area);
             dialog::render_confirmation_dialog(f, "Delete selected category? (y/n)", main_area);
         }
+        AppMode::SelectingConversionAccount => {
+            category_manager::render_category_catalog(f, app, main_area);
+            dialog::render_selection_popup(f, app, main_area);
+        }
+        AppMode::ConfirmCategoryConversion => {
+            category_manager::render_category_catalog(f, app, main_area);
+            let prompt = app
+                .category_conversion
+                .as_ref()
+                .map(|conversion| conversion.prompt.clone())
+                .unwrap_or_default();
+            dialog::render_confirmation_dialog(f, &prompt, main_area);
+        }
         AppMode::Settings => {
             transaction_table::render_transaction_table(f, app, main_area);
             settings::render_settings_form(f, app, main_area);
@@ -171,6 +194,17 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
         }
         AppMode::LedgerManager => {
             ledger_manager::render_ledger_manager(f, app, main_area);
+        }
+        AppMode::AccountManager => {
+            account_manager::render_account_manager(f, app, main_area);
+        }
+        AppMode::AccountEditor => {
+            account_manager::render_account_manager(f, app, main_area);
+            account_manager::render_account_editor(f, app, main_area);
+        }
+        AppMode::ConfirmAccountDelete => {
+            account_manager::render_account_manager(f, app, main_area);
+            dialog::render_confirmation_dialog(f, &app.account_delete_prompt, main_area);
         }
         AppMode::LedgerEditor => {
             ledger_manager::render_ledger_manager(f, app, main_area);

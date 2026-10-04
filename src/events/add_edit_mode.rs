@@ -20,9 +20,12 @@ pub fn handle_add_edit_mode(app: &mut App, key_event: KeyEvent) {
         (KeyModifiers::NONE, KeyCode::Enter) => {
             // Toggle Type, trigger selection popups, or save transaction
             match app.add_edit_fields.focused() {
-                AddEditField::TransactionType => app.toggle_transaction_type(),
+                AddEditField::TransactionType => app.cycle_transaction_type(true),
                 AddEditField::Category => app.start_category_selection(),
                 AddEditField::Subcategory => app.start_subcategory_selection(),
+                field @ (AddEditField::Account | AddEditField::ToAccount) => {
+                    app.start_account_selection(field)
+                }
                 AddEditField::Date | AddEditField::Description | AddEditField::Amount => {
                     if app.mode == AppMode::Adding {
                         app.add_transaction();
@@ -36,19 +39,23 @@ pub fn handle_add_edit_mode(app: &mut App, key_event: KeyEvent) {
         (KeyModifiers::NONE, KeyCode::Down) => app.next_add_edit_field(),
         (KeyModifiers::NONE, KeyCode::Left) => match app.add_edit_fields.focused() {
             AddEditField::Date => app.decrement_date(),
-            AddEditField::TransactionType => app.toggle_transaction_type(),
+            AddEditField::TransactionType => app.cycle_transaction_type(false),
             AddEditField::Description
             | AddEditField::Amount
             | AddEditField::Category
-            | AddEditField::Subcategory => app.move_cursor_left(),
+            | AddEditField::Subcategory
+            | AddEditField::Account
+            | AddEditField::ToAccount => app.move_cursor_left(),
         },
         (KeyModifiers::NONE, KeyCode::Right) => match app.add_edit_fields.focused() {
             AddEditField::Date => app.increment_date(),
-            AddEditField::TransactionType => app.toggle_transaction_type(),
+            AddEditField::TransactionType => app.cycle_transaction_type(true),
             AddEditField::Description
             | AddEditField::Amount
             | AddEditField::Category
-            | AddEditField::Subcategory => app.move_cursor_right(),
+            | AddEditField::Subcategory
+            | AddEditField::Account
+            | AddEditField::ToAccount => app.move_cursor_right(),
         },
         (KeyModifiers::SHIFT, KeyCode::Left)
             if app.add_edit_fields.focused() == AddEditField::Date =>

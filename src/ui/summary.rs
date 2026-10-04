@@ -1,6 +1,6 @@
 use crate::app::state::App;
 use crate::model::BudgetMonth;
-use crate::ui::helpers::{format_amount, format_hours, month_to_short_str};
+use crate::ui::helpers::{TRANSFER_COLOR, format_amount, format_hours, month_to_short_str};
 use crate::validation::days_in_month;
 use chrono::Datelike;
 use ratatui::prelude::*;
@@ -475,7 +475,8 @@ pub fn render_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 pub fn render_summary_bar(f: &mut Frame, app: &App, area: Rect, year_filter: Option<i32>) {
-    let (total_income, total_expense) = crate::app::util::calculate_totals(app, year_filter);
+    let totals = crate::app::util::calculate_totals(app, year_filter);
+    let (total_income, total_expense) = (totals.income, totals.expense);
     let net_balance = total_income - total_expense;
 
     let income_str = if app.show_hours {
@@ -522,22 +523,53 @@ pub fn render_summary_bar(f: &mut Frame, app: &App, area: Rect, year_filter: Opt
     };
     let net_span = Span::styled(format!("Net: {}", net_str), net_style);
 
-    let summary_line = Line::from(vec![
+    let mut spans = vec![
         income_span,
         Span::raw(" | "),
         expense_span,
         Span::raw(" | "),
-        net_span,
-    ])
-    .alignment(Alignment::Center);
+    ];
+    if !totals.transferred.is_zero() {
+        let transferred_str = if app.show_hours {
+            format_hours(&totals.transferred, app.hourly_rate)
+        } else {
+            format_amount(&totals.transferred)
+        };
+        spans.push(Span::styled(
+            format!("Transferred: {}", transferred_str),
+            Style::default()
+                .fg(TRANSFER_COLOR)
+                .add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::raw(" | "));
+    }
+    spans.push(net_span);
+    if let Some(account) = app.account_scope.and_then(|id| app.accounts.get(id)) {
+        let balance = app.account_balance(account);
+        spans.push(Span::raw(" | "));
+        spans.push(Span::styled(
+            format!(
+                "{}: {}",
+                crate::ui::account_manager::balance_label(account, balance),
+                crate::ui::account_manager::balance_amount(account, balance)
+            ),
+            Style::default()
+                .fg(Color::LightCyan)
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
+    let summary_line = Line::from(spans).alignment(Alignment::Center);
 
     let is_filtered = app.filtered_indices.len() != app.transactions.len();
-    let title = match (year_filter, is_filtered) {
+    let mut title = match (year_filter, is_filtered) {
         (Some(year), true) => format!("Grand Total - {} (Filtered)", year),
         (Some(year), false) => format!("Grand Total - {}", year),
         (None, true) => "Grand Total (Filtered)".to_string(),
         (None, false) => "Grand Total (All Transactions)".to_string(),
     };
+    if app.account_scope.is_some() {
+        title.push_str(&format!(" · {}", app.account_scope_label()));
+    }
 
     let summary_paragraph =
         Paragraph::new(summary_line).block(Block::default().borders(Borders::ALL).title(

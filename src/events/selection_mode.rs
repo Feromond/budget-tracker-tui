@@ -13,6 +13,7 @@ pub fn handle_selection_mode(app: &mut App, key_event: KeyEvent) {
         AppMode::SelectingRecurrenceFrequency => {
             handle_recurrence_frequency_selection(app, key_event)
         }
+        AppMode::SelectingAccountScope => handle_account_scope_selection(app, key_event),
         _ => {}
     }
 }
@@ -56,6 +57,17 @@ fn handle_recurrence_frequency_selection(app: &mut App, key_event: KeyEvent) {
         }
         KeyCode::Down => app.select_next_list_item(),
         KeyCode::Up => app.select_previous_list_item(),
+        _ => {}
+    }
+}
+
+fn handle_account_scope_selection(app: &mut App, key_event: KeyEvent) {
+    match key_event.code {
+        KeyCode::Esc => app.cancel_account_scope_picker(),
+        KeyCode::Enter => app.choose_account_scope(),
+        KeyCode::Down => app.select_next_list_item(),
+        KeyCode::Up => app.select_previous_list_item(),
+        KeyCode::Char(c) => app.handle_type_to_select(c),
         _ => {}
     }
 }

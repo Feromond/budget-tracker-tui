@@ -22,8 +22,20 @@ pub fn render_confirmation_dialog(f: &mut Frame, message: &str, area: Rect) {
 }
 
 pub fn render_selection_popup(f: &mut Frame, app: &mut App, area: Rect) {
+    use crate::app::fields::{AddEditField, SelectingField};
+    let picking_account = matches!(
+        app.selecting_field,
+        Some(SelectingField::AddEdit(
+            AddEditField::Account | AddEditField::ToAccount
+        ))
+    );
     let popup_title = match app.mode {
+        _ if picking_account => "Select Account (Enter/Esc)",
         crate::app::state::AppMode::SelectingCategory => "Select Category (Enter/Esc)",
+        crate::app::state::AppMode::SelectingAccountScope => "Show Account (Enter/Esc)",
+        crate::app::state::AppMode::SelectingConversionAccount => {
+            "Pick the Other Account (Enter/Esc)"
+        }
         crate::app::state::AppMode::SelectingSubcategory => "Select Subcategory (Enter/Esc)",
         crate::app::state::AppMode::SelectingRecurrenceFrequency => "Select Frequency (Enter/Esc)",
         _ => "Select Option",

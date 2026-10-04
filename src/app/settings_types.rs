@@ -15,6 +15,7 @@ pub enum SettingKey {
     Section,
     DatabasePath,
     ManageLedgers,
+    ManageAccounts,
     ManageCategories,
     ImportTransactions,
     ExportTransactions,

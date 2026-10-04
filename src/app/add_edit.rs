@@ -1,5 +1,5 @@
 use super::state::App;
-use crate::app::fields::{AddEditField, FieldSet};
+use crate::app::fields::{AddEditField, FieldKey, FieldSet};
 use crate::db::transaction_store::TransactionStore;
 use crate::model::TransactionType;
 use crate::model::{DATE_FORMAT, TransactionDraft};
@@ -62,6 +62,13 @@ impl App {
         let today = chrono::Local::now().date_naive();
         self.add_edit_fields[AddEditField::Date] = today.format(DATE_FORMAT).to_string();
         self.add_edit_fields[AddEditField::TransactionType] = "Expense".to_string();
+        let scoped = self
+            .account_scope
+            .and_then(|id| self.accounts.get(id))
+            .filter(|account| account.class.holds_spending())
+            .map(|account| account.name.clone());
+        self.add_edit_fields[AddEditField::Account] =
+            scoped.unwrap_or_else(|| self.default_account_name());
         self.add_edit_cursor = self.add_edit_fields[AddEditField::Date].len();
         self.clear_status_message();
     }
@@ -73,59 +80,53 @@ impl App {
             self.set_status_message("Add transaction cancelled.", Some(Duration::seconds(3)));
         }
     }
-    pub(crate) fn add_transaction(&mut self) {
-        // Parse and validate all fields for a new transaction.
-        let date_res =
-            NaiveDate::parse_from_str(&self.add_edit_fields[AddEditField::Date], DATE_FORMAT);
+    pub(crate) fn add_edit_type(&self) -> TransactionType {
+        TransactionType::try_from(self.add_edit_fields[AddEditField::TransactionType].trim())
+            .unwrap_or(TransactionType::Expense)
+    }
+
+    fn add_edit_draft(&self) -> Result<TransactionDraft, String> {
+        let amount = crate::validation::validate_amount_string(
+            self.add_edit_fields[AddEditField::Amount].trim(),
+        )?;
+        let date =
+            NaiveDate::parse_from_str(&self.add_edit_fields[AddEditField::Date], DATE_FORMAT)
+                .map_err(|_| format!("Invalid Date Format (Expected {})", DATE_FORMAT))?;
         let description = self.add_edit_fields[AddEditField::Description].trim();
-        let amount_str = self.add_edit_fields[AddEditField::Amount].trim();
-        let type_str = self.add_edit_fields[AddEditField::TransactionType]
-            .trim()
-            .to_lowercase();
-        let category = self.add_edit_fields[AddEditField::Category].trim();
-        let subcategory = self.add_edit_fields[AddEditField::Subcategory].trim();
-
-        let transaction_type = if type_str.starts_with('i') {
-            TransactionType::Income
-        } else {
-            TransactionType::Expense
-        };
-
-        let amount = match crate::validation::validate_amount_string(amount_str) {
-            Ok(amount) => amount,
-            Err(msg) => {
-                self.set_status_message(format!("Error: {}", msg), None);
-                return;
-            }
-        };
-
-        let date = match date_res {
-            Ok(date) => date,
-            Err(_) => {
-                self.set_status_message(
-                    format!("Error: Invalid Date Format (Expected {})", DATE_FORMAT),
-                    None,
-                );
-                return;
-            }
-        };
-
         if description.is_empty() {
-            self.set_status_message("Error: Description cannot be empty", None);
-            return;
+            return Err("Description cannot be empty".to_string());
         }
 
-        if let Err(cat_err) = crate::validation::validate_category(
+        let transaction_type = self.add_edit_type();
+        let category = self.add_edit_fields[AddEditField::Category].trim();
+        let subcategory = self.add_edit_fields[AddEditField::Subcategory].trim();
+        crate::validation::validate_category(
             &self.categories,
             transaction_type,
             category,
             subcategory,
-        ) {
-            self.set_status_message(format!("Error: {}", cat_err), None);
-            return;
-        }
+        )?;
 
-        let draft = TransactionDraft {
+        let account = |field: AddEditField| {
+            let name = self.add_edit_fields[field].trim();
+            self.accounts
+                .named(name)
+                .map(|account| account.id)
+                .ok_or_else(|| {
+                    if name.is_empty() {
+                        format!("Select {}", field.label().to_lowercase())
+                    } else {
+                        format!("No account named '{}'", name)
+                    }
+                })
+        };
+        let account_id = account(AddEditField::Account)?;
+        let to_account_id = match transaction_type {
+            TransactionType::Transfer => Some(account(AddEditField::ToAccount)?),
+            TransactionType::Income | TransactionType::Expense => None,
+        };
+
+        Ok(TransactionDraft {
             date,
             description: description.to_string(),
             amount,
@@ -135,6 +136,18 @@ impl App {
             is_recurring: false,
             recurrence_frequency: None,
             recurrence_end_date: None,
+            account_id,
+            to_account_id,
+        })
+    }
+
+    pub(crate) fn add_transaction(&mut self) {
+        let draft = match self.add_edit_draft() {
+            Ok(draft) => draft,
+            Err(msg) => {
+                self.set_status_message(format!("Error: {}", msg), None);
+                return;
+            }
         };
 
         match self.transaction_store().insert(&draft) {
@@ -175,13 +188,14 @@ impl App {
                         target_tx.date.format(DATE_FORMAT).to_string(),
                         target_tx.description.clone(),
                         format!("{:.2}", target_tx.amount),
-                        if target_tx.transaction_type == TransactionType::Income {
-                            "Income".to_string()
-                        } else {
-                            "Expense".to_string()
-                        },
+                        target_tx.transaction_type.as_str().to_string(),
                         target_tx.category.clone(),
                         target_tx.subcategory.clone(),
+                        self.accounts.name(target_tx.account_id).to_string(),
+                        target_tx
+                            .to_account_id
+                            .map(|id| self.accounts.name(id).to_string())
+                            .unwrap_or_default(),
                     ]);
                     self.add_edit_cursor = self.add_edit_fields[AddEditField::Date].len();
 
@@ -208,74 +222,21 @@ impl App {
     }
     pub(crate) fn update_transaction(&mut self) {
         if let Some(index) = self.editing_index {
-            let date_res =
-                NaiveDate::parse_from_str(&self.add_edit_fields[AddEditField::Date], DATE_FORMAT);
-            let description = self.add_edit_fields[AddEditField::Description].trim();
-            let amount_str = self.add_edit_fields[AddEditField::Amount].trim();
-            let type_str = self.add_edit_fields[AddEditField::TransactionType]
-                .trim()
-                .to_lowercase();
-            let category = self.add_edit_fields[AddEditField::Category].trim();
-            let subcategory = self.add_edit_fields[AddEditField::Subcategory].trim();
-
-            let transaction_type = if type_str.starts_with('i') {
-                TransactionType::Income
-            } else {
-                TransactionType::Expense
-            };
-
-            // Validate amount using centralized utility
-            let amount = match crate::validation::validate_amount_string(amount_str) {
-                Ok(amount) => amount,
+            let mut draft = match self.add_edit_draft() {
+                Ok(draft) => draft,
                 Err(msg) => {
                     self.set_status_message(format!("Error: {}", msg), None);
                     return;
                 }
             };
 
-            // Validate date and description
-            let date = match date_res {
-                Ok(date) => date,
-                Err(_) => {
-                    self.set_status_message(
-                        format!("Error: Invalid Date Format (Expected {})", DATE_FORMAT),
-                        None,
-                    );
-                    return;
-                }
-            };
-
-            if description.is_empty() {
-                self.set_status_message("Error: Description cannot be empty", None);
-                return;
-            }
-
-            // Validate category using centralized utility
-            if let Err(cat_err) = crate::validation::validate_category(
-                &self.categories,
-                transaction_type,
-                category,
-                subcategory,
-            ) {
-                self.set_status_message(format!("Error: {}", cat_err), None);
-                return;
-            }
-
             // Update transaction
             if index < self.transactions.len() {
                 let existing_tx = &self.transactions[index];
                 // The edit form only edits the core fields; preserve the recurring rule.
-                let draft = TransactionDraft {
-                    date,
-                    description: description.to_string(),
-                    amount,
-                    transaction_type,
-                    category: category.to_string(),
-                    subcategory: subcategory.to_string(),
-                    is_recurring: existing_tx.is_recurring,
-                    recurrence_frequency: existing_tx.recurrence_frequency,
-                    recurrence_end_date: existing_tx.recurrence_end_date,
-                };
+                draft.is_recurring = existing_tx.is_recurring;
+                draft.recurrence_frequency = existing_tx.recurrence_frequency;
+                draft.recurrence_end_date = existing_tx.recurrence_end_date;
                 let Some(id) = existing_tx.id else {
                     self.set_status_message("Error: transaction has no database id", None);
                     self.exit_editing(true);
@@ -321,22 +282,33 @@ impl App {
         self.add_edit_cursor = self.add_edit_fields.focused_value().len();
     }
 
-    // --- Toggle Transaction Type ---
-    // Switches between Income and Expense, and clears category/subcategory if type changes.
-    pub(crate) fn toggle_transaction_type(&mut self) {
-        if self.add_edit_fields.focused() == AddEditField::TransactionType {
-            self.add_edit_fields[AddEditField::TransactionType] = if self.add_edit_fields
-                [AddEditField::TransactionType]
-                .eq_ignore_ascii_case("income")
-            {
-                "Expense".to_string()
-            } else {
-                "Income".to_string()
-            };
-            self.add_edit_fields[AddEditField::Category] = String::new();
-            self.add_edit_fields[AddEditField::Subcategory] = String::new();
+    pub(crate) fn cycle_transaction_type(&mut self, forward: bool) {
+        if self.add_edit_fields.focused() != AddEditField::TransactionType {
+            return;
+        }
+        let next = crate::app::util::cycle(&TransactionType::all(), self.add_edit_type(), forward);
+        self.add_edit_fields[AddEditField::TransactionType] = next.as_str().to_string();
+        self.add_edit_fields[AddEditField::Category] = String::new();
+        self.add_edit_fields[AddEditField::Subcategory] = String::new();
+        if next != TransactionType::Transfer {
+            self.add_edit_fields[AddEditField::ToAccount] = String::new();
+            let spends = self
+                .accounts
+                .named(&self.add_edit_fields[AddEditField::Account])
+                .is_some_and(|account| account.class.holds_spending());
+            if !spends {
+                self.add_edit_fields[AddEditField::Account] = self.default_account_name();
+            }
         }
     }
+
+    pub(crate) fn default_account_name(&self) -> String {
+        self.accounts
+            .default_id()
+            .map(|id| self.accounts.name(id).to_string())
+            .unwrap_or_default()
+    }
+
     // --- Copying Logic ---
     pub(crate) fn copy_transaction(&mut self) {
         if let Some(view_index) = self.table_state.selected() {
@@ -355,6 +327,8 @@ impl App {
                     is_recurring: false,
                     recurrence_frequency: None,
                     recurrence_end_date: None,
+                    account_id: tx.account_id,
+                    to_account_id: tx.to_account_id,
                 };
 
                 match self
@@ -372,6 +346,8 @@ impl App {
                                     && t.transaction_type == tx.transaction_type
                                     && t.category == tx.category
                                     && t.subcategory == tx.subcategory
+                                    && t.account_id == tx.account_id
+                                    && t.to_account_id == tx.to_account_id
                                     && !t.is_recurring
                                     && !t.is_generated_from_recurring
                             })

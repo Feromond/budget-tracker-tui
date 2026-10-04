@@ -5,10 +5,29 @@ use ratatui::widgets::ListState;
 use std::collections::HashSet;
 
 impl App {
+    fn report_no_categories(&mut self, transaction_type: TransactionType) {
+        self.cancel_selection();
+        self.set_status_message(
+            format!(
+                "No {} categories yet. Add some in Settings > Manage Categories.",
+                transaction_type.as_str().to_lowercase()
+            ),
+            None,
+        );
+    }
+
     // --- Category/Subcategory Selection Logic ---
     pub(crate) fn start_category_selection(&mut self) {
         // If fuzzy search is enabled, redirect to that mode
         if self.fuzzy_search_mode {
+            if !self
+                .categories
+                .iter()
+                .any(|category| category.transaction_type == self.add_edit_type())
+            {
+                self.report_no_categories(self.add_edit_type());
+                return;
+            }
             self.start_fuzzy_selection();
             return;
         }
@@ -32,6 +51,10 @@ impl App {
             .filter(|cat_info| cat_info.transaction_type == current_type)
             .map(|cat_info| cat_info.category.clone())
             .collect();
+        if unique_categories.is_empty() {
+            self.report_no_categories(current_type);
+            return;
+        }
         let mut options: Vec<String> = unique_categories.drain().collect();
         options.sort_unstable();
         self.current_selection_list = options;
@@ -40,6 +63,42 @@ impl App {
             self.selection_list_state.select(Some(0));
         }
     }
+    pub(crate) fn start_account_selection(&mut self, field: AddEditField) {
+        let transfer = self.add_edit_type() == TransactionType::Transfer;
+        if field == AddEditField::ToAccount && !transfer {
+            return;
+        }
+        let current = self.add_edit_fields[field].trim().to_string();
+        let other = match field {
+            AddEditField::ToAccount => self.add_edit_fields[AddEditField::Account].trim(),
+            _ => self.add_edit_fields[AddEditField::ToAccount].trim(),
+        };
+        let options: Vec<String> = self
+            .accounts
+            .all()
+            .iter()
+            .filter(|account| transfer || account.class.holds_spending())
+            .filter(|account| !(transfer && account.name.eq_ignore_ascii_case(other)))
+            .filter(|account| !account.archived || account.name.eq_ignore_ascii_case(&current))
+            .map(|account| account.name.clone())
+            .collect();
+        if options.is_empty() {
+            self.set_status_message("No other account to pick. Add one in Settings.", None);
+            return;
+        }
+
+        self.type_to_select.clear();
+        self.selecting_field = Some(SelectingField::AddEdit(field));
+        self.mode = crate::app::state::AppMode::SelectingCategory;
+        let selected = options
+            .iter()
+            .position(|name| name.eq_ignore_ascii_case(&current))
+            .unwrap_or(0);
+        self.current_selection_list = options;
+        self.selection_list_state = ListState::default();
+        self.selection_list_state.select(Some(selected));
+    }
+
     pub(crate) fn start_subcategory_selection(&mut self) {
         self.type_to_select.clear();
         self.selecting_field = Some(SelectingField::AddEdit(AddEditField::Subcategory));
@@ -95,6 +154,13 @@ impl App {
             if field == AddEditField::Category {
                 self.add_edit_fields.focus(AddEditField::Subcategory);
                 self.start_subcategory_selection();
+                return;
+            } else if field == AddEditField::Subcategory
+                && self.add_edit_type() == TransactionType::Transfer
+                && self.add_edit_fields[AddEditField::ToAccount].is_empty()
+            {
+                self.add_edit_fields.focus(AddEditField::ToAccount);
+                self.start_account_selection(AddEditField::ToAccount);
                 return;
             } else if field == AddEditField::Subcategory {
                 self.add_edit_fields.focus(AddEditField::Date);

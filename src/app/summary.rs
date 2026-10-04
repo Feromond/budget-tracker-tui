@@ -369,6 +369,7 @@ impl App {
         match self.category_summary_sort_by {
             CategorySummarySortColumn::Income => summary.income,
             CategorySummarySortColumn::Expense => summary.expense,
+            CategorySummarySortColumn::Transfer => summary.transferred,
             _ => summary.income - summary.expense,
         }
     }
@@ -383,6 +384,7 @@ impl App {
                     for summary in month_map.values() {
                         total.income += summary.income;
                         total.expense += summary.expense;
+                        total.transferred += summary.transferred;
                     }
                 }
                 (month, total)
@@ -464,7 +466,8 @@ impl App {
         match self.category_summary_sort_by {
             CategorySummarySortColumn::Income
             | CategorySummarySortColumn::Expense
-            | CategorySummarySortColumn::Net => matches.sort_by(|&a, &b| {
+            | CategorySummarySortColumn::Net
+            | CategorySummarySortColumn::Transfer => matches.sort_by(|&a, &b| {
                 self.applied_category_summary_order(
                     self.transaction_sort_key(a)
                         .cmp(&self.transaction_sort_key(b)),
@@ -481,12 +484,13 @@ impl App {
 
     fn transaction_sort_key(&self, index: usize) -> Decimal {
         let tx = &self.transactions[index];
-        let income = tx.transaction_type == crate::model::TransactionType::Income;
-        match (self.category_summary_sort_by, income) {
-            (CategorySummarySortColumn::Income, true) => tx.amount,
-            (CategorySummarySortColumn::Expense, false) => tx.amount,
-            (CategorySummarySortColumn::Net, true) => tx.amount,
-            (CategorySummarySortColumn::Net, false) => -tx.amount,
+        use crate::model::TransactionType::{Expense, Income, Transfer};
+        match (self.category_summary_sort_by, tx.transaction_type) {
+            (CategorySummarySortColumn::Income, Income) => tx.amount,
+            (CategorySummarySortColumn::Expense, Expense) => tx.amount,
+            (CategorySummarySortColumn::Transfer, Transfer) => tx.amount,
+            (CategorySummarySortColumn::Net, Income) => tx.amount,
+            (CategorySummarySortColumn::Net, Expense) => -tx.amount,
             _ => Decimal::ZERO,
         }
     }

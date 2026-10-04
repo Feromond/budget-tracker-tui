@@ -1,8 +1,10 @@
 use crate::app::investments::STALE_VALUATION_DAYS;
 use crate::app::state::App;
 use crate::model::{InvestmentEntryKind, InvestmentRange};
-use crate::ui::form::render_field_form;
-use crate::ui::helpers::{centered_rect, clamp_table_scroll, format_amount, format_signed_amount};
+use crate::ui::form::{FieldOverride, render_field_form};
+use crate::ui::helpers::{
+    TRANSFER_COLOR, centered_rect, clamp_table_scroll, format_amount, format_signed_amount,
+};
 use chrono::NaiveDate;
 use ratatui::prelude::*;
 use ratatui::widgets::{
@@ -531,7 +533,12 @@ fn render_entries_table(f: &mut Frame, app: &mut App, area: Rect) {
                 Cell::from(entry.date.format("%Y-%m-%d").to_string()),
                 Cell::from(label).style(style),
                 Cell::from(right(format_amount(&entry.amount))).style(style),
-                Cell::from(entry.note.clone()).style(Style::default().fg(Color::DarkGray)),
+                if entry.transaction_id.is_some() {
+                    Cell::from(format!("⇄ {}", entry.note))
+                        .style(Style::default().fg(TRANSFER_COLOR))
+                } else {
+                    Cell::from(entry.note.clone()).style(Style::default().fg(Color::DarkGray))
+                },
             ])
         })
         .collect();
@@ -639,7 +646,9 @@ pub fn render_investment_account_editor(f: &mut Frame, app: &App, area: Rect) {
                         | crate::app::fields::InvestmentAccountField::OpeningInvested
                         | crate::app::fields::InvestmentAccountField::OpeningDate
                 )
-                .then_some("Edit the account's entries instead")
+                .then_some(FieldOverride::Placeholder(
+                    "Edit the account's entries instead",
+                ))
             }
         },
     );

@@ -1,6 +1,7 @@
 use super::state::{App, AppMode};
 use crate::csv_io::{load_transactions, save_transactions};
 use crate::db::transaction_store::TransactionStore;
+use crate::model::Transaction;
 use chrono::Duration;
 use std::path::{Path, PathBuf};
 
@@ -54,10 +55,18 @@ impl App {
             }
         };
         // Generated occurrences are re-derived from their sources, so only real rows are merged.
-        let real_rows: Vec<_> = rows
-            .into_iter()
-            .filter(|tx| !tx.is_generated_from_recurring)
-            .collect();
+        let real_rows: Vec<Transaction> = match rows
+            .iter()
+            .filter(|row| !row.is_generated_from_recurring)
+            .map(|row| self.accounts.link_csv(row))
+            .collect()
+        {
+            Ok(rows) => rows,
+            Err(msg) => {
+                self.set_status_message(format!("Error: {}", msg), None);
+                return;
+            }
+        };
 
         let summary = match self.transaction_store().import_merge(&real_rows) {
             Ok(summary) => summary,
@@ -125,7 +134,12 @@ impl App {
         }
 
         // Export the materialized view (real rows plus generated occurrences) for a complete CSV.
-        match save_transactions(&self.transactions, &path) {
+        let rows: Vec<_> = self
+            .transactions
+            .iter()
+            .map(|tx| self.accounts.csv_row(tx))
+            .collect();
+        match save_transactions(&rows, &path) {
             Ok(_) => {
                 let count = self.transactions.len();
                 self.exit_settings_mode();

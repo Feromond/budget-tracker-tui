@@ -9,33 +9,11 @@ use serde::de::Error as SerdeError;
 
 pub(crate) const DATE_FORMAT: &str = "%Y-%m-%d";
 
-fn deserialize_flexible_date<'de, D>(deserializer: D) -> Result<NaiveDate, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    if let Ok(date) = NaiveDate::parse_from_str(&s, DATE_FORMAT) {
-        return Ok(date);
-    }
-    if let Ok(date) = NaiveDate::parse_from_str(&s, "%Y/%m/%d") {
-        return Ok(date);
-    }
-    if let Ok(date) = NaiveDate::parse_from_str(&s, "%d/%m/%Y") {
-        return Ok(date);
-    }
-    if let Ok(date) = NaiveDate::parse_from_str(&s, "%d-%m-%Y") {
-        return Ok(date);
-    }
-    Err(SerdeError::custom(format!(
-        "Invalid date format: '{}'. Expected YYYY-MM-DD, YYYY/MM/DD, DD/MM/YYYY, or DD-MM-YYYY.",
-        s
-    )))
-}
-
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, PartialOrd, Ord, Copy)]
 pub enum TransactionType {
     Income,
     Expense,
+    Transfer,
 }
 
 impl TransactionType {
@@ -43,7 +21,16 @@ impl TransactionType {
         match self {
             TransactionType::Income => "Income",
             TransactionType::Expense => "Expense",
+            TransactionType::Transfer => "Transfer",
         }
+    }
+
+    pub fn all() -> [TransactionType; 3] {
+        [
+            TransactionType::Expense,
+            TransactionType::Income,
+            TransactionType::Transfer,
+        ]
     }
 }
 
@@ -60,8 +47,10 @@ impl TryFrom<&str> for TransactionType {
         match value.to_lowercase().as_str() {
             "income" => Ok(TransactionType::Income),
             "expense" => Ok(TransactionType::Expense),
+            "transfer" => Ok(TransactionType::Transfer),
             t if t.starts_with('i') => Ok(TransactionType::Income),
             t if t.starts_with('e') => Ok(TransactionType::Expense),
+            t if t.starts_with('t') => Ok(TransactionType::Transfer),
             _ => Err(()),
         }
     }
@@ -75,7 +64,7 @@ impl<'de> Deserialize<'de> for TransactionType {
         let s = String::deserialize(deserializer)?;
         TransactionType::try_from(s.as_str()).map_err(|_| {
             SerdeError::custom(format!(
-                "Invalid transaction type: '{}'. Expected 'Income', 'Expense', 'i', or 'e'.",
+                "Invalid transaction type: '{}'. Expected 'Income', 'Expense', 'Transfer', 'i', 'e', or 't'.",
                 s
             ))
         })
@@ -138,38 +127,26 @@ impl RecurrenceFrequency {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 pub struct Transaction {
-    // Apply the custom deserializer for reading dates so it can work on excel edits
-    #[serde(deserialize_with = "deserialize_flexible_date")]
-    #[serde(serialize_with = "date_format::serialize")]
     pub date: NaiveDate,
     pub description: String,
     pub amount: Decimal,
     pub transaction_type: TransactionType,
-    #[serde(default = "default_category")]
     pub category: String,
-    #[serde(default)]
     pub subcategory: String,
-    // Recurring transaction fields
-    #[serde(default)]
     pub is_recurring: bool,
-    #[serde(default)]
     pub recurrence_frequency: Option<RecurrenceFrequency>,
-    #[serde(default)]
-    #[serde(deserialize_with = "deserialize_optional_date")]
-    #[serde(serialize_with = "serialize_optional_date")]
     pub recurrence_end_date: Option<NaiveDate>,
-    #[serde(default)]
     pub is_generated_from_recurring: bool,
-    // Database identity. Excluded from CSV (import/export stay byte-compatible).
     // `id` is set for persisted (real) rows and None for in-memory-only generated rows.
-    #[serde(skip)]
     pub id: Option<i64>,
     // In-memory only: the source row's id, stamped onto generated occurrences so we can
     // jump back to the source without fragile attribute matching. Never a DB column.
-    #[serde(skip)]
     pub parent_id: Option<i64>,
+    /// The source account for transfers.
+    pub account_id: i64,
+    pub to_account_id: Option<i64>,
 }
 
 impl Transaction {
@@ -186,6 +163,8 @@ impl Transaction {
             is_recurring: self.is_recurring,
             recurrence_frequency: self.recurrence_frequency,
             recurrence_end_date: self.recurrence_end_date,
+            account_id: self.account_id,
+            to_account_id: self.to_account_id,
         }
     }
 }
@@ -203,48 +182,8 @@ pub struct TransactionDraft {
     pub is_recurring: bool,
     pub recurrence_frequency: Option<RecurrenceFrequency>,
     pub recurrence_end_date: Option<NaiveDate>,
-}
-
-fn default_category() -> String {
-    "Uncategorized".to_string()
-}
-
-fn deserialize_optional_date<'de, D>(deserializer: D) -> Result<Option<NaiveDate>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let opt = Option::<String>::deserialize(deserializer)?;
-    match opt {
-        Some(s) if !s.is_empty() => {
-            deserialize_flexible_date(serde::de::value::StrDeserializer::new(&s)).map(Some)
-        }
-        _ => Ok(None),
-    }
-}
-
-fn serialize_optional_date<S>(date: &Option<NaiveDate>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    match date {
-        Some(d) => serializer.serialize_str(&d.format(DATE_FORMAT).to_string()),
-        None => serializer.serialize_str(""),
-    }
-}
-
-pub mod date_format {
-    use chrono::NaiveDate;
-    use serde::{self, Serializer};
-
-    const FORMAT: &str = super::DATE_FORMAT;
-
-    pub fn serialize<S>(date: &NaiveDate, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s = format!("{}", date.format(FORMAT));
-        serializer.serialize_str(&s)
-    }
+    pub account_id: i64,
+    pub to_account_id: Option<i64>,
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -424,6 +363,7 @@ pub enum CategorySummarySortColumn {
     Income,
     Expense,
     Net,
+    Transfer,
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -439,6 +379,17 @@ pub enum CategorySortColumn {
 pub struct MonthlySummary {
     pub income: Decimal,
     pub expense: Decimal,
+    pub transferred: Decimal,
+}
+
+impl MonthlySummary {
+    pub fn add(&mut self, tx: &Transaction) {
+        match tx.transaction_type {
+            TransactionType::Income => self.income += tx.amount,
+            TransactionType::Expense => self.expense += tx.amount,
+            TransactionType::Transfer => self.transferred += tx.amount,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -533,19 +484,125 @@ impl fmt::Display for InvestmentEntryKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InvestmentAccount {
+pub struct Account {
     pub id: i64,
     pub name: String,
     pub kind: String,
     pub position: i64,
     pub archived: bool,
+    pub class: AccountClass,
+    /// Debt is stored as a negative balance.
+    pub opening_balance: Decimal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InvestmentAccountDraft {
+pub struct AccountDraft {
     pub name: String,
     pub kind: String,
     pub archived: bool,
+    pub class: AccountClass,
+    pub opening_balance: Decimal,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccountClass {
+    Cash,
+    Credit,
+    Investment,
+}
+
+impl AccountClass {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            AccountClass::Cash => "Cash",
+            AccountClass::Credit => "Credit",
+            AccountClass::Investment => "Investment",
+        }
+    }
+
+    pub fn from_label(label: &str) -> Option<AccountClass> {
+        Self::all()
+            .into_iter()
+            .find(|class| class.as_str().eq_ignore_ascii_case(label.trim()))
+    }
+
+    pub fn all() -> [AccountClass; 3] {
+        [
+            AccountClass::Cash,
+            AccountClass::Credit,
+            AccountClass::Investment,
+        ]
+    }
+
+    pub fn holds_spending(self) -> bool {
+        matches!(self, AccountClass::Cash | AccountClass::Credit)
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Accounts {
+    list: Vec<Account>,
+}
+
+impl Accounts {
+    pub fn new(mut list: Vec<Account>) -> Self {
+        list.sort_by(|a, b| a.position.cmp(&b.position).then_with(|| a.id.cmp(&b.id)));
+        Self { list }
+    }
+
+    pub fn all(&self) -> &[Account] {
+        &self.list
+    }
+
+    pub fn get(&self, id: i64) -> Option<&Account> {
+        self.list.iter().find(|account| account.id == id)
+    }
+
+    pub fn named(&self, name: &str) -> Option<&Account> {
+        self.list
+            .iter()
+            .find(|account| account.name.eq_ignore_ascii_case(name.trim()))
+    }
+
+    pub fn name(&self, id: i64) -> &str {
+        self.get(id).map_or("?", |account| account.name.as_str())
+    }
+
+    pub fn default_id(&self) -> Option<i64> {
+        let spending = || self.list.iter().filter(|a| a.class.holds_spending());
+        spending()
+            .find(|account| !account.archived)
+            .or_else(|| spending().next())
+            .map(|account| account.id)
+    }
+
+    pub fn several(&self) -> bool {
+        self.list.len() > 1
+    }
+
+    pub fn balance(&self, id: i64, transactions: &[Transaction], on: NaiveDate) -> Decimal {
+        let opening = self.get(id).map_or(Decimal::ZERO, |a| a.opening_balance);
+        let flows: Decimal = transactions
+            .iter()
+            .filter(|tx| tx.date <= on)
+            .map(|tx| match tx.transaction_type {
+                TransactionType::Income if tx.account_id == id => tx.amount,
+                TransactionType::Expense if tx.account_id == id => -tx.amount,
+                TransactionType::Transfer if tx.to_account_id == Some(id) => tx.amount,
+                TransactionType::Transfer if tx.account_id == id => -tx.amount,
+                _ => Decimal::ZERO,
+            })
+            .sum();
+        opening + flows
+    }
+
+    pub fn investments(&self) -> Vec<Account> {
+        self.list
+            .iter()
+            .filter(|account| account.class == AccountClass::Investment)
+            .cloned()
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -556,6 +613,32 @@ pub struct InvestmentEntry {
     pub entry_kind: InvestmentEntryKind,
     pub amount: Decimal,
     pub note: String,
+    /// Linked transfers must be edited through the transaction list.
+    pub transaction_id: Option<i64>,
+}
+
+impl InvestmentEntry {
+    /// Includes both accounts; [`Portfolio::new`] keeps only investment entries.
+    pub fn transfer_flows(tx: &Transaction) -> Vec<Self> {
+        let (Some(to), Some(transaction_id)) = (tx.to_account_id, tx.id.or(tx.parent_id)) else {
+            return Vec::new();
+        };
+        [
+            (tx.account_id, InvestmentEntryKind::Withdrawal),
+            (to, InvestmentEntryKind::Contribution),
+        ]
+        .into_iter()
+        .map(|(account_id, entry_kind)| Self {
+            id: transaction_id,
+            account_id,
+            date: tx.date,
+            entry_kind,
+            amount: tx.amount,
+            note: tx.description.clone(),
+            transaction_id: Some(transaction_id),
+        })
+        .collect()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -626,7 +709,7 @@ impl InvestmentRange {
 
 #[derive(Debug, Default, Clone)]
 pub struct Portfolio {
-    accounts: Vec<InvestmentAccount>,
+    accounts: Vec<Account>,
     entries: Vec<InvestmentEntry>,
 }
 
@@ -648,8 +731,13 @@ impl InvestmentPosition {
 }
 
 impl Portfolio {
-    pub fn new(mut accounts: Vec<InvestmentAccount>, mut entries: Vec<InvestmentEntry>) -> Self {
+    pub fn new(mut accounts: Vec<Account>, mut entries: Vec<InvestmentEntry>) -> Self {
         accounts.sort_by(|a, b| a.position.cmp(&b.position).then_with(|| a.id.cmp(&b.id)));
+        entries.retain(|entry| {
+            accounts
+                .iter()
+                .any(|account| account.id == entry.account_id)
+        });
         entries.sort_by(|a, b| {
             a.account_id
                 .cmp(&b.account_id)
@@ -658,15 +746,36 @@ impl Portfolio {
         Self { accounts, entries }
     }
 
-    pub fn visible_accounts(&self, show_archived: bool) -> Vec<&InvestmentAccount> {
+    pub fn visible_accounts(&self, show_archived: bool) -> Vec<&Account> {
         self.accounts
             .iter()
             .filter(|account| show_archived || !account.archived)
             .collect()
     }
 
-    pub fn account(&self, id: i64) -> Option<&InvestmentAccount> {
+    pub fn account(&self, id: i64) -> Option<&Account> {
         self.accounts.iter().find(|account| account.id == id)
+    }
+
+    /// Match each manual entry at most once, by date, kind, and amount.
+    pub fn duplicate_entries(&self, account_id: i64, flows: &[InvestmentEntry]) -> Vec<i64> {
+        let mut candidates: Vec<&InvestmentEntry> = self
+            .entries_for(account_id)
+            .filter(|entry| {
+                entry.transaction_id.is_none() && entry.entry_kind != InvestmentEntryKind::Valuation
+            })
+            .collect();
+        flows
+            .iter()
+            .filter_map(|flow| {
+                let index = candidates.iter().position(|entry| {
+                    entry.date == flow.date
+                        && entry.entry_kind == flow.entry_kind
+                        && entry.amount == flow.amount
+                })?;
+                Some(candidates.swap_remove(index).id)
+            })
+            .collect()
     }
 
     pub fn entries_for(&self, account_id: i64) -> impl Iterator<Item = &InvestmentEntry> {

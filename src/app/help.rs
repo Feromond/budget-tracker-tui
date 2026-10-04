@@ -107,6 +107,14 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 ),
             ),
             KeyBindingInfo::new(
+                "Shift+A",
+                "Show an account",
+                "Navigation",
+                Some(
+                    "Show one account or all accounts. Transfers appear under both accounts they use, and summaries follow your selection. New transactions use the viewed account if it's cash or credit. Choose Manage accounts to add or edit accounts.",
+                ),
+            ),
+            KeyBindingInfo::new(
                 "o",
                 "Settings",
                 "Actions",
@@ -169,10 +177,10 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             ),
             KeyBindingInfo::new(
                 "Type",
-                "Expense / Income",
+                "Expense / Income / Transfer",
                 "Fields",
                 Some(
-                    "Classifies the transaction as 'Expense' or 'Income'. This affects how totals are calculated in summaries. Use Left/Right arrows to toggle.",
+                    "Choose Expense, Income, or Transfer with Left/Right. Transfers move money between accounts and can have a category, but don't count toward budgets or income and expense totals.",
                 ),
             ),
             KeyBindingInfo::new(
@@ -185,10 +193,10 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             ),
             KeyBindingInfo::new(
                 "←/→",
-                "Toggle type / Adjust date / Move cursor",
+                "Cycle type / Adjust date / Move cursor",
                 "Input",
                 Some(
-                    "On the Type field toggles Income/Expense; on the Date field moves the date by one day; on text fields moves the cursor.",
+                    "Cycle through transaction types, adjust the date by one day, or move the cursor in a text field.",
                 ),
             ),
             KeyBindingInfo::new(
@@ -207,10 +215,10 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             ),
             KeyBindingInfo::new(
                 "Enter",
-                "Save / Toggle type / Open selection",
+                "Save / Cycle type / Open selection",
                 "Actions",
                 Some(
-                    "On the Type field toggles Income/Expense; on Category/Subcategory opens a selection list; on any other field saves the transaction.",
+                    "On Type, select the next type. On Category, Subcategory, or Account, open the picker. To Account opens a picker for transfers. On other fields, save the transaction.",
                 ),
             ),
             KeyBindingInfo::new("Esc", "Cancel", "Actions", None),
@@ -278,7 +286,7 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 "Type",
                 "Filter Type",
                 "Fields",
-                Some("Filter by Expense or Income."),
+                Some("Filter by Income, Expense, or Transfer."),
             ),
             KeyBindingInfo::new(
                 "Desc",
@@ -336,11 +344,11 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("←/→ / [/]", "Change Year", "Navigation", None),
             KeyBindingInfo::new("PgUp/PgDn", "Jump Selected Month", "Navigation", None),
             KeyBindingInfo::new(
-                "1-6 / F1-F6",
+                "1-7 / F1-F7",
                 "Sort by Column",
                 "View",
                 Some(
-                    "Sort by month, category, subcategory, income, expense, or net; the same key again flips the direction. Month reorders the month rows, category and subcategory reorder the rows inside a month, and the amount columns reorder both.",
+                    "Sort by month, category, subcategory, income, expense, net, or transfer; the same key again flips the direction. Month reorders the month rows, category and subcategory reorder the rows inside a month, and the amount columns reorder both.",
                 ),
             ),
             KeyBindingInfo::new(
@@ -348,7 +356,7 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 "Drill Down One Level",
                 "Actions",
                 Some(
-                    "Expand or collapse a month or subcategory. Transactions appear oldest first, or by amount when sorting by income, expense, or net. Press Enter on a transaction to open it in the main list with your filters unchanged.",
+                    "Expand or collapse a month or subcategory. Transactions appear oldest first, or by amount when sorting by income, expense, net, or transfer. Press Enter on a transaction to open it in the main list with your filters unchanged.",
                 ),
             ),
             KeyBindingInfo::new(
@@ -537,6 +545,14 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                     "Opens the same budget popup the budget view uses, dated from the current month. Expense categories only.",
                 ),
             ),
+            KeyBindingInfo::new(
+                "t",
+                "Convert to transfers",
+                "Actions",
+                Some(
+                    "Convert transactions matching this type, category, and subcategory in the current ledger, including recurring ones. Expenses become transfers to the account you pick; income becomes transfers from it. A matching Transfer category is added. The confirmation shows how many matching manual investment entries will be removed to avoid duplicates.",
+                ),
+            ),
             KeyBindingInfo::new("1/F1", "Sort by Type", "Sorting", None),
             KeyBindingInfo::new("2/F2", "Sort by Category", "Sorting", None),
             KeyBindingInfo::new("3/F3", "Sort by Subcategory", "Sorting", None),
@@ -601,6 +617,11 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
         AppMode::ConfirmCategoryDelete => vec![
             KeyBindingInfo::new("y", "Confirm delete", "Actions", None),
             KeyBindingInfo::new("n/Esc", "Cancel delete", "Actions", None),
+            KeyBindingInfo::new("Ctrl+H", "Show Keybindings Help", "System", None),
+        ],
+        AppMode::ConfirmCategoryConversion => vec![
+            KeyBindingInfo::new("y", "Convert to transfers", "Actions", None),
+            KeyBindingInfo::new("n/Esc", "Cancel", "Actions", None),
             KeyBindingInfo::new("Ctrl+H", "Show Keybindings Help", "System", None),
         ],
         AppMode::Investments => vec![
@@ -671,7 +692,12 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                     "Opens the entry form, set to Contribution. Use the Entry field to switch it to a withdrawal or a valuation.",
                 ),
             ),
-            KeyBindingInfo::new("e/Enter", "Edit selected entry", "Actions", None),
+            KeyBindingInfo::new(
+                "e/Enter",
+                "Edit selected entry",
+                "Actions",
+                Some("Edit entries marked ⇄ from the main transaction list."),
+            ),
             KeyBindingInfo::new("d", "Delete selected entry", "Actions", None),
             KeyBindingInfo::new("q/Esc", "Back to the accounts list", "System", None),
         ],
@@ -765,6 +791,49 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 ),
             ),
             KeyBindingInfo::new("q/Esc", "Back to Settings", "System", None),
+        ],
+        AppMode::AccountManager => vec![
+            KeyBindingInfo::new("↑/↓", "Navigate accounts", "Navigation", None),
+            KeyBindingInfo::new(
+                "a",
+                "Add account",
+                "Actions",
+                Some(
+                    "Use Cash for bank accounts or cash on hand, Credit for cards or loans, and Investment for brokerage or retirement accounts. Set an opening balance for cash or credit accounts. Record investment valuations, contributions, and withdrawals in the investments view, or transfer money from another account.",
+                ),
+            ),
+            KeyBindingInfo::new(
+                "e/Enter",
+                "Edit selected account",
+                "Actions",
+                Some(
+                    "Edit the name, type, opening balance, or status. The class can't change while the account has transactions or investment entries.",
+                ),
+            ),
+            KeyBindingInfo::new(
+                "d",
+                "Delete selected account",
+                "Actions",
+                Some(
+                    "If transactions use this account, archive it instead. Deleting an investment account also deletes its manual entries. A ledger must keep at least one cash or credit account.",
+                ),
+            ),
+            KeyBindingInfo::new("q/Esc", "Back to previous view", "System", None),
+        ],
+        AppMode::AccountEditor => vec![
+            KeyBindingInfo::new("Tab/↑/↓", "Move between fields", "Navigation", None),
+            KeyBindingInfo::new(
+                "←/→",
+                "Toggle class or status / move cursor",
+                "Navigation",
+                None,
+            ),
+            KeyBindingInfo::new("Enter", "Toggle or save", "Actions", None),
+            KeyBindingInfo::new("Esc", "Cancel", "System", None),
+        ],
+        AppMode::ConfirmAccountDelete => vec![
+            KeyBindingInfo::new("y", "Confirm delete", "Actions", None),
+            KeyBindingInfo::new("Any other key", "Cancel", "Actions", None),
         ],
         AppMode::LedgerEditor => vec![
             KeyBindingInfo::new("←/→", "Move cursor", "Navigation", None),
@@ -875,7 +944,9 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
         | AppMode::SelectingSubcategory
         | AppMode::SelectingFilterCategory
         | AppMode::SelectingFilterSubcategory
-        | AppMode::SelectingRecurrenceFrequency => vec![
+        | AppMode::SelectingRecurrenceFrequency
+        | AppMode::SelectingConversionAccount
+        | AppMode::SelectingAccountScope => vec![
             KeyBindingInfo::new("↑/↓", "Navigate options", "Navigation", None),
             KeyBindingInfo::new("Enter", "Confirm Selection", "Actions", None),
             KeyBindingInfo::new("Esc", "Cancel Selection", "Actions", None),

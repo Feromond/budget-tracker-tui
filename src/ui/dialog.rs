@@ -73,10 +73,33 @@ pub fn render_selection_popup(f: &mut Frame, app: &mut App, area: Rect) {
         _ => "Select Option",
     };
 
+    let scope_picker = app.mode == crate::app::state::AppMode::SelectingAccountScope;
+    let current = app.account_scope_index();
+    let last = app.current_selection_list.len().saturating_sub(1);
     let items: Vec<ListItem> = app
         .current_selection_list
         .iter()
-        .map(|i| ListItem::new(i.as_str()).style(Style::default().fg(Color::White)))
+        .enumerate()
+        .map(|(index, item)| match index {
+            _ if scope_picker && index == current => ListItem::new(Line::from(vec![
+                Span::styled("● ", Style::default().fg(Color::LightGreen)),
+                Span::styled(
+                    item.as_str(),
+                    Style::default()
+                        .fg(Color::LightGreen)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ])),
+            _ if scope_picker && index == last => ListItem::new(format!("› {}", item)).style(
+                Style::default()
+                    .fg(Color::LightCyan)
+                    .add_modifier(Modifier::ITALIC),
+            ),
+            _ if scope_picker => {
+                ListItem::new(format!("  {}", item)).style(Style::default().fg(Color::White))
+            }
+            _ => ListItem::new(item.as_str()).style(Style::default().fg(Color::White)),
+        })
         .collect();
 
     let item_count = items.len();

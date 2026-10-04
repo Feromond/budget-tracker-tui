@@ -24,15 +24,19 @@ impl App {
             }
         }));
         options.push(MANAGE_ACCOUNTS.to_string());
-        let selected = self
-            .account_scope
-            .and_then(|id| self.accounts.all().iter().position(|a| a.id == id))
-            .map_or(0, |index| index + 1);
         self.type_to_select.clear();
         self.current_selection_list = options;
         self.selection_list_state = ListState::default();
-        self.selection_list_state.select(Some(selected));
+        self.selection_list_state
+            .select(Some(self.account_scope_index()));
         self.mode = crate::app::state::AppMode::SelectingAccountScope;
+    }
+
+    /// Where the account in view sits in the picker, after "All accounts".
+    pub(crate) fn account_scope_index(&self) -> usize {
+        self.account_scope
+            .and_then(|id| self.accounts.all().iter().position(|a| a.id == id))
+            .map_or(0, |index| index + 1)
     }
 
     pub(crate) fn choose_account_scope(&mut self) {

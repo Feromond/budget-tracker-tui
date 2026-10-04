@@ -126,10 +126,14 @@ pub fn render_account_editor(f: &mut Frame, app: &App, area: Rect) {
         match AccountClass::from_label(&app.account_fields[AccountField::Class]) {
             Some(AccountClass::Credit) => |field| {
                 (field == AccountField::OpeningBalance)
-                    .then_some(FieldOverride::Label("Owed at Start"))
+                    .then_some(FieldOverride::Label("Starting Amount Owed"))
             },
             Some(AccountClass::Investment) => |field| {
-                (field == AccountField::OpeningBalance).then_some(FieldOverride::Placeholder(
+                matches!(
+                    field,
+                    AccountField::OpeningBalance | AccountField::BalanceDate
+                )
+                .then_some(FieldOverride::Placeholder(
                     "Set by valuations in the investments view",
                 ))
             },

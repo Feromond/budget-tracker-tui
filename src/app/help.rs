@@ -809,7 +809,7 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 "Add account",
                 "Actions",
                 Some(
-                    "Use Cash for bank accounts or cash on hand, Credit for cards or loans, and Investment for brokerage or retirement accounts. Set an opening balance for cash or credit accounts. Record investment valuations, contributions, and withdrawals in the investments view, or transfer money from another account.",
+                    "Choose Cash for bank accounts or cash, Credit for cards or loans, or Investment for brokerage or retirement accounts. For cash or credit, set a starting balance and an optional statement date in As Of. Manage investments in the investments view, or fund them with transfers.",
                 ),
             ),
             KeyBindingInfo::new(
@@ -817,7 +817,7 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 "Edit selected account",
                 "Actions",
                 Some(
-                    "Edit the name, type, opening balance, or status. The class can't change while the account has transactions or investment entries.",
+                    "Edit the name, type, starting balance, As Of date, or status. The class can't change while the account has transactions or investment entries.",
                 ),
             ),
             KeyBindingInfo::new(

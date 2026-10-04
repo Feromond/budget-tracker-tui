@@ -234,8 +234,9 @@ form_fields! {
         Class => FieldKind::Toggle, "Class",
             "(◀/▶: Cash for chequing and savings, Credit for cards and loans)";
         Kind => FieldKind::Text, "Type", "(Optional - e.g. Chequing, Visa, Brokerage)";
-        OpeningBalance => FieldKind::Amount, "Opening Balance",
-            "(Optional - before your first recorded transaction)";
+        OpeningBalance => FieldKind::Amount, "Starting Balance", "(Optional)";
+        BalanceDate => FieldKind::Date, "As Of (YYYY-MM-DD)",
+            "(Optional - statement date. Leave blank to count all transactions)";
         Status => FieldKind::Toggle, "Status", "(◀/▶ to toggle)";
     }
 }

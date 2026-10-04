@@ -209,7 +209,7 @@ pub struct App {
     pub(crate) account_scope: Option<i64>,
     pub(crate) account_manager_origin: AppMode,
     pub(crate) account_table_state: TableState,
-    pub(crate) account_fields: FieldSet<AccountField, 5>,
+    pub(crate) account_fields: FieldSet<AccountField, 6>,
     pub(crate) account_cursor: usize,
     pub(crate) editing_account_id: Option<i64>,
     pub(crate) account_delete_id: Option<i64>,

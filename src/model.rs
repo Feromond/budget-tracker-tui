@@ -493,8 +493,14 @@ pub struct Account {
     pub class: AccountClass,
     /// Debt is stored as a negative balance.
     pub opening_balance: Decimal,
-    /// Transfers on or before this date are included in the opening position.
+    /// Transactions on or before this date are included in the opening balance or position.
     pub tracked_from: Option<NaiveDate>,
+}
+
+impl Account {
+    pub fn tracks(&self, date: NaiveDate) -> bool {
+        self.tracked_from.is_none_or(|from| date > from)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -584,10 +590,12 @@ impl Accounts {
     }
 
     pub fn balance(&self, id: i64, transactions: &[Transaction], on: NaiveDate) -> Decimal {
-        let opening = self.get(id).map_or(Decimal::ZERO, |a| a.opening_balance);
+        let Some(account) = self.get(id) else {
+            return Decimal::ZERO;
+        };
         let flows: Decimal = transactions
             .iter()
-            .filter(|tx| tx.date <= on)
+            .filter(|tx| tx.date <= on && account.tracks(tx.date))
             .map(|tx| match tx.transaction_type {
                 TransactionType::Income if tx.account_id == id => tx.amount,
                 TransactionType::Expense if tx.account_id == id => -tx.amount,
@@ -596,7 +604,7 @@ impl Accounts {
                 _ => Decimal::ZERO,
             })
             .sum();
-        opening + flows
+        account.opening_balance + flows
     }
 
     pub fn investments(&self) -> Vec<Account> {
@@ -710,10 +718,6 @@ impl InvestmentRange {
     }
 }
 
-fn counts_transfer(account: &Account, date: NaiveDate) -> bool {
-    account.tracked_from.is_none_or(|from| date > from)
-}
-
 #[derive(Debug, Default, Clone)]
 pub struct Portfolio {
     accounts: Vec<Account>,
@@ -743,7 +747,7 @@ impl Portfolio {
         entries.retain(|entry| {
             accounts.iter().any(|account| {
                 account.id == entry.account_id
-                    && (entry.transaction_id.is_none() || counts_transfer(account, entry.date))
+                    && (entry.transaction_id.is_none() || account.tracks(entry.date))
             })
         });
         entries.sort_by(|a, b| {
@@ -767,7 +771,7 @@ impl Portfolio {
 
     pub fn counts_transfer(&self, account_id: i64, date: NaiveDate) -> bool {
         self.account(account_id)
-            .is_some_and(|account| counts_transfer(account, date))
+            .is_some_and(|account| account.tracks(date))
     }
 
     /// Match each manual entry at most once, by date, kind, and amount.

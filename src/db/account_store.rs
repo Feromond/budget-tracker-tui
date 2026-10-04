@@ -447,12 +447,9 @@ fn opening_balance(draft: &AccountDraft) -> Decimal {
 }
 
 fn tracked_from(draft: &AccountDraft) -> Option<String> {
-    match draft.class {
-        AccountClass::Investment => draft
-            .tracked_from
-            .map(|date| date.format(DATE_FORMAT).to_string()),
-        AccountClass::Cash | AccountClass::Credit => None,
-    }
+    draft
+        .tracked_from
+        .map(|date| date.format(DATE_FORMAT).to_string())
 }
 
 fn parse_class(index: usize, value: &str) -> rusqlite::Result<AccountClass> {

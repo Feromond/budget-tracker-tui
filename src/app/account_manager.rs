@@ -3,8 +3,8 @@ use crate::app::fields::AccountField;
 use crate::app::investments::{STATUS_ACTIVE, STATUS_ARCHIVED};
 use crate::app::settings_types::SettingKey;
 use crate::db::account_store::AccountStore;
-use crate::model::{Account, AccountClass, AccountDraft};
-use chrono::Duration;
+use crate::model::{Account, AccountClass, AccountDraft, DATE_FORMAT};
+use chrono::{Duration, NaiveDate};
 use rust_decimal::Decimal;
 
 impl App {
@@ -118,6 +118,10 @@ impl App {
         if !opening.is_zero() {
             self.account_fields[AccountField::OpeningBalance] = format!("{:.2}", opening);
         }
+        self.account_fields[AccountField::BalanceDate] = account
+            .tracked_from
+            .map(|date| date.format(DATE_FORMAT).to_string())
+            .unwrap_or_default();
         self.account_fields[AccountField::Status] = if account.archived {
             STATUS_ARCHIVED
         } else {
@@ -177,7 +181,10 @@ impl App {
                 }
                 .to_string();
             }
-            AccountField::Name | AccountField::Kind | AccountField::OpeningBalance => {}
+            AccountField::Name
+            | AccountField::Kind
+            | AccountField::OpeningBalance
+            | AccountField::BalanceDate => {}
         }
     }
 
@@ -196,6 +203,30 @@ impl App {
                 }
             }
         };
+        // Investment dates are edited in the investments view.
+        let tracked_from = match class {
+            AccountClass::Investment => self
+                .editing_account_id
+                .and_then(|id| self.accounts.get(id))
+                .and_then(|account| account.tracked_from),
+            AccountClass::Cash | AccountClass::Credit => {
+                let date_str = self.account_fields[AccountField::BalanceDate].trim();
+                if date_str.is_empty() {
+                    None
+                } else {
+                    match NaiveDate::parse_from_str(date_str, DATE_FORMAT) {
+                        Ok(date) => Some(date),
+                        Err(_) => {
+                            self.set_status_message(
+                                format!("Error: Invalid As Of date (expected {})", DATE_FORMAT),
+                                None,
+                            );
+                            return;
+                        }
+                    }
+                }
+            }
+        };
         let draft = AccountDraft {
             name: self.account_fields[AccountField::Name].trim().to_string(),
             kind: self.account_fields[AccountField::Kind].trim().to_string(),
@@ -205,10 +236,7 @@ impl App {
                 AccountClass::Credit => -opening,
                 AccountClass::Cash | AccountClass::Investment => opening,
             },
-            tracked_from: self
-                .editing_account_id
-                .and_then(|id| self.accounts.get(id))
-                .and_then(|account| account.tracked_from),
+            tracked_from,
         };
 
         let store = self.account_store();

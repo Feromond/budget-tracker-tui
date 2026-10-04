@@ -346,8 +346,8 @@ deletes it.
 
 | Class | For | Balance |
 | --- | --- | --- |
-| Cash | Chequing, savings, cash on hand | Opening balance plus its transactions |
-| Credit | Credit cards, lines of credit, loans | Opening debt, adjusted for income, spending, and transfers |
+| Cash | Chequing, savings, cash on hand | Starting balance plus its transactions |
+| Credit | Credit cards, lines of credit, loans | Starting debt, adjusted for income, spending, and transfers |
 | Investment | Brokerage, retirement, crypto | Latest [valuation](#investments), adjusted for later contributions and withdrawals |
 
 Income and expenses use cash or credit accounts. To move money between an investment account and
@@ -365,18 +365,22 @@ counts as spending on that date. Paying the card later is a transfer, so it does
 ### Match your bank balance
 
 *Net* is income minus expenses. To compare a cash or credit account with its statement, use the
-account balance. It includes the opening balance and all income, expenses, and transfers through
+account balance. It includes the starting balance and all income, expenses, and transfers through
 today. Future transactions and forecast occurrences don't count, and filters don't change it.
 
-Set *Opening Balance* in Settings > Accounts to the amount in the account before your first recorded
-transaction. For a credit account, enter the amount you owed as a positive number in *Owed at Start*.
+Set *Starting Balance* in Settings > Accounts. For a credit account, enter the amount you owed as a
+positive number in *Starting Amount Owed*. Leave *As Of* blank to count all recorded transactions.
+
+To start from a statement, enter its date in *As Of* and use its closing balance. Earlier transactions,
+including that day's, won't affect the balance but still count in other totals. You can update the
+amount and date whenever you need to match a newer statement.
 
 Balances appear in the Accounts list and in the grand-total bar when you're viewing one account.
 The bar labels them *Balance* for cash, *Owed* for debt, and *Value* for investments. A credit account
 with a positive balance shows *Credit* instead of *Owed*.
 
 If you previously recorded your starting amount as an income transaction, it still counts toward the
-balance. Moving it into the opening balance and deleting that transaction stops it counting as
+balance. Moving it into the starting balance and deleting that transaction stops it counting as
 income.
 
 ### Look at one account

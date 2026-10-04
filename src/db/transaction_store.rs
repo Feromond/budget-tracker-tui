@@ -1412,9 +1412,15 @@ mod tests {
         assert_eq!(rows[1].category, "Debt Payments");
 
         let accounts = investments(&temp, DEFAULT_LEDGER_ID);
-        for (id, name, class, opening) in [
-            (MAIN_ACCOUNT, "Main Account", AccountClass::Cash, "5000"),
-            (visa, "Visa", AccountClass::Credit, "-300"),
+        for (id, name, class, opening, tracked_from) in [
+            (
+                MAIN_ACCOUNT,
+                "Main Account",
+                AccountClass::Cash,
+                "4100",
+                Some(day("2026-03-25")),
+            ),
+            (visa, "Visa", AccountClass::Credit, "-300", None),
         ] {
             accounts
                 .update_account(
@@ -1425,14 +1431,14 @@ mod tests {
                         archived: false,
                         class,
                         opening_balance: Decimal::from_str(opening).unwrap(),
-                        tracked_from: None,
+                        tracked_from,
                     },
                 )
                 .unwrap();
         }
         let all = Accounts::new(accounts.list_accounts().unwrap());
         let balance = |id, on| all.balance(id, &rows, day(on));
-        assert_eq!(balance(MAIN_ACCOUNT, "2026-03-31"), Decimal::from(3800));
+        assert_eq!(balance(MAIN_ACCOUNT, "2026-03-31"), Decimal::from(4100));
         assert_eq!(balance(visa, "2026-03-10"), Decimal::from(-1500));
         assert_eq!(balance(visa, "2026-03-31"), Decimal::from(-300));
     }

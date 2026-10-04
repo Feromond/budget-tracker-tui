@@ -528,6 +528,7 @@ pub fn render_summary_bar(f: &mut Frame, app: &App, area: Rect, year_filter: Opt
         Span::raw(" | "),
         expense_span,
         Span::raw(" | "),
+        net_span,
     ];
     if !totals.transferred.is_zero() {
         let transferred_str = if app.show_hours {
@@ -535,15 +536,14 @@ pub fn render_summary_bar(f: &mut Frame, app: &App, area: Rect, year_filter: Opt
         } else {
             format_amount(&totals.transferred)
         };
+        spans.push(Span::raw(" | "));
         spans.push(Span::styled(
             format!("Transferred: {}", transferred_str),
             Style::default()
                 .fg(TRANSFER_COLOR)
                 .add_modifier(Modifier::BOLD),
         ));
-        spans.push(Span::raw(" | "));
     }
-    spans.push(net_span);
     if let Some(account) = app.account_scope.and_then(|id| app.accounts.get(id)) {
         let balance = app.account_balance(account);
         spans.push(Span::raw(" | "));

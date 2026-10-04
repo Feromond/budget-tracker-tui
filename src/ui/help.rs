@@ -113,6 +113,8 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
         AppMode::AdvancedFiltering => vec![
             Span::raw("Tab/↑↓ Nav | "),
             Span::raw("← → Adjust | "),
+            Span::styled("Ctrl+N", Style::default().fg(Color::LightRed)),
+            Span::raw(" Exclude | "),
             Span::styled("Ctrl+R", Style::default().fg(Color::LightYellow)),
             Span::raw(" Clear | "),
             Span::styled("Enter", Style::default().fg(Color::LightGreen)),

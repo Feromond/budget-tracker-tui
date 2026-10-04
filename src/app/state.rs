@@ -1,5 +1,5 @@
 use crate::app::fields::{
-    AccountField, AddEditField, AdvancedFilterField, CategoryEditField, FieldSet,
+    AccountField, AddEditField, AdvancedFilterField, CategoryEditField, FieldSet, FilterCriterion,
     InvestmentAccountField, InvestmentEntryField, RecurringField, SelectingField,
 };
 use crate::app::update_checker;
@@ -133,6 +133,7 @@ pub struct App {
     pub(crate) add_edit_cursor: usize,
     pub(crate) advanced_filter_fields: FieldSet<AdvancedFilterField, 9>,
     pub(crate) advanced_filter_cursor: usize,
+    pub(crate) advanced_filter_excluded: HashSet<FilterCriterion>,
     pub(crate) delete_index: Option<usize>,
     pub(crate) editing_index: Option<usize>,
     pub(crate) status_message: Option<String>,
@@ -415,6 +416,7 @@ impl App {
             add_edit_cursor: 0,
             advanced_filter_fields: Default::default(),
             advanced_filter_cursor: 0,
+            advanced_filter_excluded: HashSet::new(),
             delete_index: None,
             editing_index: None,
             status_message: load_error_msg,

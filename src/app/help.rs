@@ -233,6 +233,12 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
         ],
         AppMode::Filtering => vec![
             KeyBindingInfo::new("Any Char", "Type filter text", "Input", None),
+            KeyBindingInfo::new(
+                "!",
+                "Hide matches (type it first)",
+                "Input",
+                Some("Start with ! to hide matches instead, like !amazon."),
+            ),
             KeyBindingInfo::new("Bksp/Del", "Delete character", "Input", None),
             KeyBindingInfo::new("←/→", "Move cursor", "Navigation", None),
             KeyBindingInfo::new(
@@ -311,6 +317,14 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 ),
             ),
             KeyBindingInfo::new("Shift+←/→", "Jump month (date fields)", "Input", None),
+            KeyBindingInfo::new(
+                "Ctrl+N",
+                "Exclude / include field",
+                "Actions",
+                Some(
+                    "Hide matches for the focused field, except Recurring. Press again to include matches. Each date or amount range shares one setting, as do Category and Subcategory. Excluded category and subcategory names must match exactly, ignoring case.",
+                ),
+            ),
             KeyBindingInfo::new("Ctrl+R", "Clear all filters", "Actions", None),
             KeyBindingInfo::new(
                 "Enter",

@@ -194,6 +194,28 @@ form_fields! {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FilterCriterion {
+    Date,
+    Description,
+    Category,
+    Type,
+    Amount,
+}
+
+impl AdvancedFilterField {
+    pub fn criterion(self) -> Option<FilterCriterion> {
+        match self {
+            Self::DateFrom | Self::DateTo => Some(FilterCriterion::Date),
+            Self::Description => Some(FilterCriterion::Description),
+            Self::Category | Self::Subcategory => Some(FilterCriterion::Category),
+            Self::TransactionType => Some(FilterCriterion::Type),
+            Self::AmountFrom | Self::AmountTo => Some(FilterCriterion::Amount),
+            Self::Recurring => None,
+        }
+    }
+}
+
 form_fields! {
     pub enum CategoryEditField {
         TransactionType => FieldKind::Toggle, "Transaction Type", "(Left/Right or Enter to toggle)";

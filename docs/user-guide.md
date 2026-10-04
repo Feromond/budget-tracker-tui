@@ -80,7 +80,7 @@ first active cash or credit account, or its first archived one if none are activ
 
 ### Quick filter
 
-The quick filter (`f`) searches transaction descriptions as you type, ignoring case. `Enter` closes the input and keeps the filter applied; `Esc` or `Ctrl+R` clears it.
+The quick filter (`f`) searches transaction descriptions as you type, ignoring case. Start with `!` to hide matches instead, like `!amazon`. `Enter` closes the input and keeps the filter applied; `Esc` or `Ctrl+R` clears it.
 
 ### Advanced filter
 
@@ -93,6 +93,12 @@ Use `YYYY-MM-DD` for dates and plain decimal amounts. Range endpoints are includ
 The Type field is a `←`/`→` toggle that cycles through blank (everything), `Income`, `Expense`, and `Transfer`.
 
 The Recurring field is a `←`/`→` toggle that cycles through blank (everything), `Recurring`, and `One-Time`. Setting it to `Recurring` narrows the table and the summary totals to your recurring payments and their generated occurrences, so you can see what a cycle costs.
+
+#### Excluding matches
+
+Press `Ctrl+N` on any field except Recurring to hide its matches. Press it again to include matches. Excluded fields turn red. You can combine filters to show, for example, October expenses that aren't rent.
+
+The two date fields share one exclusion setting, as do the two amount fields. Excluding a range shows everything outside it. Category and Subcategory also share a setting, so excluding `Food > Restaurants` hides just that pair. Excluded category and subcategory names must match exactly, ignoring case, so excluding `Food` keeps `Fast Food`.
 
 ## Recurring transactions
 

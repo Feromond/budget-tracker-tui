@@ -132,7 +132,9 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 "q/Esc",
                 "Quit / Clear Filters",
                 "System",
-                Some("If filters are active, clears them. Otherwise, quits the application."),
+                Some(
+                    "If filters are active, clears them. If you're looking at one account, goes back to all of them. Otherwise, quits the application.",
+                ),
             ),
             KeyBindingInfo::new(
                 "Ctrl+H",

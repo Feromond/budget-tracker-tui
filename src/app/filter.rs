@@ -59,6 +59,12 @@ impl App {
         self.mode = crate::app::state::AppMode::Normal;
     }
 
+    pub(crate) fn show_all_accounts(&mut self) {
+        self.account_scope = None;
+        self.refresh_filter();
+        self.set_status_message("Showing all accounts", Some(Duration::seconds(3)));
+    }
+
     pub(crate) fn account_scope_label(&self) -> String {
         match self.account_scope {
             Some(id) => self.accounts.name(id).to_string(),

@@ -54,7 +54,7 @@ These are the keys for the main view. Some do different things in other views.
 | Open [investments](#investments) | `i` |
 | Show one [account](#accounts), or all of them | `Shift+A` |
 | Open [settings](#settings) | `o` |
-| Clear an active filter, or quit when no filter is active | `q` / `Esc` |
+| Clear an active filter, go back to all accounts, or quit when neither applies | `q` / `Esc` |
 
 ## Adding and editing transactions
 

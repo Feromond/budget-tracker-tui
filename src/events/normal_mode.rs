@@ -19,6 +19,8 @@ pub fn handle_normal_mode(app: &mut App, key_event: KeyEvent) {
         (KeyCode::Char('q'), _) | (KeyCode::Esc, _) => {
             if app.is_filter_active() {
                 app.reset_all_filters();
+            } else if app.account_scope.is_some() {
+                app.show_all_accounts();
             } else {
                 app.quit();
             }

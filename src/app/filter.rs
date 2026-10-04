@@ -1,5 +1,7 @@
 use super::state::App;
-use crate::app::fields::{AdvancedFilterField, FieldKey, FieldKind, SelectingField};
+use crate::app::fields::{
+    AdvancedFilterField, FieldKey, FieldKind, FilterCriterion, SelectingField,
+};
 use crate::model::{DATE_FORMAT, TransactionType};
 use chrono::{Duration, NaiveDate};
 use ratatui::widgets::ListState;
@@ -105,13 +107,18 @@ impl App {
             self.sort_order,
         );
         let query = self.simple_filter_content.to_lowercase();
+        let (query, exclude) = match query.strip_prefix('!') {
+            Some(rest) => (rest, true),
+            None => (query.as_str(), false),
+        };
         self.filtered_indices = self
             .transactions
             .iter()
             .enumerate()
             .filter(|(_, tx)| {
                 self.in_account_scope(tx)
-                    && (query.is_empty() || tx.description.to_lowercase().contains(&query))
+                    && (query.is_empty()
+                        || tx.description.to_lowercase().contains(query) != exclude)
             })
             .map(|(index, _)| index)
             .collect();
@@ -168,6 +175,7 @@ impl App {
     pub(crate) fn clear_advanced_filter_fields_only(&mut self) {
         // Clear advanced filter fields without changing mode
         self.advanced_filter_fields.reset();
+        self.advanced_filter_excluded.clear();
     }
     pub(crate) fn clear_simple_filter_field_only(&mut self) {
         // Clear simple filter field without changing mode
@@ -195,6 +203,20 @@ impl App {
             ""
         };
         self.advanced_filter_fields[AdvancedFilterField::TransactionType] = new_val.to_string();
+    }
+    pub(crate) fn toggle_advanced_exclusion(&mut self) {
+        let Some(criterion) = self.advanced_filter_fields.focused().criterion() else {
+            return;
+        };
+        self.clear_simple_filter_field_only();
+        if !self.advanced_filter_excluded.remove(&criterion) {
+            self.advanced_filter_excluded.insert(criterion);
+        }
+    }
+    pub(crate) fn is_advanced_field_excluded(&self, field: AdvancedFilterField) -> bool {
+        field
+            .criterion()
+            .is_some_and(|criterion| self.advanced_filter_excluded.contains(&criterion))
     }
     pub(crate) fn toggle_advanced_recurring(&mut self) {
         self.clear_simple_filter_field_only();
@@ -308,7 +330,10 @@ impl App {
         let desc_q = self.advanced_filter_fields[AdvancedFilterField::Description].to_lowercase();
         let cat_q = self.advanced_filter_fields[AdvancedFilterField::Category].to_lowercase();
         let sub_q = self.advanced_filter_fields[AdvancedFilterField::Subcategory].to_lowercase();
-        let type_q = self.advanced_filter_fields[AdvancedFilterField::TransactionType].trim();
+        let type_q = TransactionType::try_from(
+            self.advanced_filter_fields[AdvancedFilterField::TransactionType].trim(),
+        )
+        .ok();
         let recurring_q = self.advanced_filter_fields[AdvancedFilterField::Recurring].trim();
         let amt_from = self.advanced_filter_fields[AdvancedFilterField::AmountFrom]
             .parse::<Decimal>()
@@ -316,65 +341,54 @@ impl App {
         let amt_to = self.advanced_filter_fields[AdvancedFilterField::AmountTo]
             .parse::<Decimal>()
             .ok();
+        let excluded = |criterion| self.advanced_filter_excluded.contains(&criterion);
+        let exclude_category = excluded(FilterCriterion::Category);
+        // Exact when excluding so hiding Food keeps Fast Food
+        let name_matches = |name: &str, query: &str| {
+            let name = name.to_lowercase();
+            query.is_empty()
+                || if exclude_category {
+                    name == query
+                } else {
+                    name.contains(query)
+                }
+        };
+        let keeps = |set: bool, matches: bool, criterion| !set || matches != excluded(criterion);
         self.filtered_indices = self
             .transactions
             .iter()
             .enumerate()
             .filter(|(_, tx)| {
-                if let Some(d) = date_from
-                    && tx.date < d
-                {
-                    return false;
-                }
-                if let Some(d) = date_to
-                    && tx.date > d
-                {
-                    return false;
-                }
-                if !desc_q.is_empty() && !tx.description.to_lowercase().contains(&desc_q) {
-                    return false;
-                }
-                if !cat_q.is_empty() && !tx.category.to_lowercase().contains(&cat_q) {
-                    return false;
-                }
-                if !sub_q.is_empty() && !tx.subcategory.to_lowercase().contains(&sub_q) {
-                    return false;
-                }
-                if type_q.eq_ignore_ascii_case("Income")
-                    && tx.transaction_type != TransactionType::Income
-                {
-                    return false;
-                }
-                if type_q.eq_ignore_ascii_case("Expense")
-                    && tx.transaction_type != TransactionType::Expense
-                {
-                    return false;
-                }
-                if type_q.eq_ignore_ascii_case("Transfer")
-                    && tx.transaction_type != TransactionType::Transfer
-                {
-                    return false;
-                }
-                if !self.in_account_scope(tx) {
-                    return false;
-                }
-                if recurring_q.eq_ignore_ascii_case("Recurring") && !tx.is_recurring {
-                    return false;
-                }
-                if recurring_q.eq_ignore_ascii_case("One-Time") && tx.is_recurring {
-                    return false;
-                }
-                if let Some(f) = amt_from
-                    && tx.amount < f
-                {
-                    return false;
-                }
-                if let Some(t) = amt_to
-                    && tx.amount > t
-                {
-                    return false;
-                }
-                true
+                self.in_account_scope(tx)
+                    && keeps(
+                        date_from.is_some() || date_to.is_some(),
+                        date_from.is_none_or(|d| tx.date >= d)
+                            && date_to.is_none_or(|d| tx.date <= d),
+                        FilterCriterion::Date,
+                    )
+                    && keeps(
+                        !desc_q.is_empty(),
+                        tx.description.to_lowercase().contains(&desc_q),
+                        FilterCriterion::Description,
+                    )
+                    && keeps(
+                        !cat_q.is_empty() || !sub_q.is_empty(),
+                        name_matches(&tx.category, &cat_q) && name_matches(&tx.subcategory, &sub_q),
+                        FilterCriterion::Category,
+                    )
+                    && keeps(
+                        type_q.is_some(),
+                        type_q == Some(tx.transaction_type),
+                        FilterCriterion::Type,
+                    )
+                    && keeps(
+                        amt_from.is_some() || amt_to.is_some(),
+                        amt_from.is_none_or(|f| tx.amount >= f)
+                            && amt_to.is_none_or(|t| tx.amount <= t),
+                        FilterCriterion::Amount,
+                    )
+                    && !(recurring_q.eq_ignore_ascii_case("Recurring") && !tx.is_recurring)
+                    && !(recurring_q.eq_ignore_ascii_case("One-Time") && tx.is_recurring)
             })
             .map(|(i, _)| i)
             .collect();

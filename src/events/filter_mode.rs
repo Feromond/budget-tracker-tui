@@ -45,6 +45,7 @@ fn handle_simple_filtering(app: &mut App, key_event: KeyEvent) {
 fn handle_advanced_filtering(app: &mut App, key_event: KeyEvent) {
     match (key_event.modifiers, key_event.code) {
         (KeyModifiers::CONTROL, KeyCode::Char('r')) => app.reset_all_filters(),
+        (KeyModifiers::CONTROL, KeyCode::Char('n')) => app.toggle_advanced_exclusion(),
         (KeyModifiers::NONE, KeyCode::Esc) => app.cancel_advanced_filtering(),
         (KeyModifiers::NONE, KeyCode::Enter) => match app.advanced_filter_fields.focused() {
             AdvancedFilterField::Category => app.start_advanced_category_selection(),

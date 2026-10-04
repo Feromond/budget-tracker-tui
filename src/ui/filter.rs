@@ -9,7 +9,7 @@ pub fn render_filter_input(f: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Filter (Description)"),
+                .title("Filter (Description, ! to exclude)"),
         );
     f.render_widget(input, area);
     // Cursor setting is handled in the main `ui` function
@@ -21,25 +21,34 @@ pub fn render_advanced_filter_form(f: &mut Frame, app: &App, area: Rect) {
         .advanced_filter_fields
         .iter()
         .map(|(field, text)| {
-            let label = format!("{} {}", field.label(), field.hint())
-                .trim_end()
-                .to_string();
+            let excluded = app.is_advanced_field_excluded(field);
+            let exclude_style = Style::default().fg(Color::LightRed).bold();
+            let mut label = vec![Span::raw(field.label())];
+            if excluded {
+                label.push(Span::styled(" EXCLUDING", exclude_style));
+            }
+            if !field.hint().is_empty() {
+                label.push(Span::raw(format!(" {}", field.hint())));
+            }
             let content = if field.kind() == FieldKind::Toggle {
-                Span::styled(
-                    format!(" < {} > ", text),
-                    Style::default().fg(Color::White).bold(),
-                )
+                Span::styled(format!(" < {} > ", text), Style::default().bold())
             } else {
                 Span::raw(text.as_str())
             };
             Paragraph::new(content)
-                .style(Style::default().fg(Color::White))
+                .style(Style::default().fg(if excluded {
+                    Color::LightRed
+                } else {
+                    Color::White
+                }))
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
-                        .title(label)
+                        .title(Line::from(label))
                         .border_style(if field == focused_field {
                             Style::default().fg(Color::Yellow)
+                        } else if excluded {
+                            Style::default().fg(Color::LightRed)
                         } else {
                             Style::default()
                         }),

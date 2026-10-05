@@ -9,6 +9,7 @@ The companion to the [README](../README.md), with the longer explanations that d
 - [Set a monthly or category budget](#set-a-monthly-or-category-budget)
 - [Forecast upcoming recurring payments](#forecasting-ahead)
 - [Record an investment's latest value](#record-a-valuation)
+- [Plan your debt payoff](#debts)
 - [Track a credit card or savings account](#accounts)
 - [Pay off a card or contribute to an investment](#record-a-transfer)
 - [Create a what-if ledger](#create-a-what-if-ledger)
@@ -24,6 +25,7 @@ The companion to the [README](../README.md), with the longer explanations that d
 - [Summary views](#summary-views)
 - [Budgets](#budgets)
 - [Investments](#investments)
+- [Debts](#debts)
 - [Accounts](#accounts)
 - [Transfers](#transfers)
 - [The category catalog](#the-category-catalog)
@@ -52,6 +54,7 @@ These are the keys for the main view. Some do different things in other views.
 | Open recurring settings for the selected transaction | `r` |
 | Open monthly summary / category summary / budgets | `s` / `c` / `b` |
 | Open [investments](#investments) | `i` |
+| Open [debts](#debts) | `Shift+D` |
 | Show one [account](#accounts), or all of them | `Shift+A` |
 | Open [settings](#settings) | `o` |
 | Clear an active filter, go back to all accounts, or quit when neither applies | `q` / `Esc` |
@@ -338,6 +341,51 @@ account, you'll need to archive it instead of deleting it.
 
 Investments belong to the ledger they were created in, the same way transactions do, and are carried
 along when you copy a ledger.
+
+## Debts
+
+Press `Shift+D` to see balances, payoff estimates, and interest costs. Existing credit
+[accounts](#accounts) appear here too.
+
+### Add a debt
+
+Press `a` to add a debt or `e` to edit one:
+
+- **Owed / As Of**: your balance on a given date. Leave As Of blank to count all transactions.
+- **Interest Rate**: the yearly percentage, like `19.99`.
+- **Monthly Payment**: your minimum or loan payment. Or fill in **Months Left** to calculate
+  it.
+
+Choose *Track only* under **Payoff Plan** to exclude a debt from the plan and chart.
+This works for cards you pay in full or mortgages you track separately. Rate and payment are optional.
+
+### Plan your payoff
+
+Press `s` to switch strategies:
+
+- **Avalanche** pays the highest rate first.
+- **Snowball** pays the smallest balance first.
+- **Minimums only** uses each debt's regular payment, with no extra or rollover.
+
+Avalanche and Snowball roll paid-off debts' payments into the next debt. Use `←`/`→` to add
+extra each month (`Shift` for bigger steps). The target payment appears in green; `#` shows
+payoff order. The gray chart line and *Saves* compare your plan with minimum payments.
+Interest estimates use monthly calculations and may differ from your lender's.
+
+### Record a payment
+
+Press `p` to open a cash transfer with your monthly payment filled in. *This Month* shows a ✓
+once you've paid at least that amount.
+
+### Match a statement
+
+Press `r` and enter your statement balance. A higher balance opens an interest expense for the
+difference; a lower one opens income on the card. Review and save the transaction to apply it.
+
+### Debt details
+
+Press `Enter` for history, a chart, and a monthly payoff schedule. `Tab` chooses which table
+`↑`/`↓` scrolls.
 
 ## Accounts
 

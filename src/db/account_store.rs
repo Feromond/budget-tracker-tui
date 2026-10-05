@@ -1,4 +1,5 @@
 use crate::db::database::SqliteDatabase;
+use crate::debt::DebtTerms;
 use crate::model::{
     Account, AccountClass, AccountDraft, DATE_FORMAT, InvestmentEntry, InvestmentEntryDraft,
     InvestmentEntryKind,
@@ -19,6 +20,9 @@ pub trait AccountStore {
     fn save_entry(&self, draft: &InvestmentEntryDraft) -> Result<i64>;
     fn update_entry(&self, id: i64, draft: &InvestmentEntryDraft) -> Result<()>;
     fn delete_entry(&self, id: i64) -> Result<()>;
+    fn list_debt_terms(&self) -> Result<Vec<DebtTerms>>;
+    fn save_debt_terms(&self, terms: &DebtTerms) -> Result<()>;
+    fn delete_debt_terms(&self, account_id: i64) -> Result<()>;
 }
 
 pub struct SqliteAccountStore {
@@ -200,7 +204,7 @@ impl AccountStore for SqliteAccountStore {
 
     fn update_account(&self, id: i64, draft: &AccountDraft) -> Result<()> {
         let name = validate_name(&draft.name)?;
-        let conn = self.ready_connection()?;
+        let mut conn = self.ready_connection()?;
         let class = self.class_of(&conn, id)?;
         if class != draft.class {
             if Self::is_used(&conn, id)? {
@@ -214,7 +218,10 @@ impl AccountStore for SqliteAccountStore {
             }
         }
 
-        conn.execute(
+        let tx = conn
+            .transaction()
+            .map_err(|err| Error::other(format!("Failed to begin account update: {}", err)))?;
+        tx.execute(
             "
             UPDATE accounts
             SET name = ?1, kind = ?2, archived = ?3, class = ?4, opening_balance = ?5,
@@ -233,7 +240,12 @@ impl AccountStore for SqliteAccountStore {
             ],
         )
         .map_err(|err| name_conflict(err, &name, "rename"))?;
-        Ok(())
+        if draft.class != AccountClass::Credit {
+            tx.execute("DELETE FROM debt_terms WHERE account_id = ?1", [id])
+                .map_err(|err| Error::other(format!("Failed to clear debt terms: {}", err)))?;
+        }
+        tx.commit()
+            .map_err(|err| Error::other(format!("Failed to commit account update: {}", err)))
     }
 
     fn delete_account(&self, id: i64) -> Result<()> {
@@ -385,6 +397,90 @@ impl AccountStore for SqliteAccountStore {
                 format!("Investment entry {} was not found.", id),
             ));
         }
+        Ok(())
+    }
+
+    fn list_debt_terms(&self) -> Result<Vec<DebtTerms>> {
+        let conn = self.ready_connection()?;
+        let mut stmt = conn
+            .prepare(
+                "
+                SELECT d.account_id, d.apr, d.payment, d.in_plan
+                FROM debt_terms d
+                JOIN accounts a ON a.id = d.account_id
+                WHERE a.ledger_id = ?1
+                ",
+            )
+            .map_err(|err| Error::other(format!("Failed to prepare debt query: {}", err)))?;
+
+        let optional = |row: &Row<'_>, index: usize| {
+            row.get::<_, Option<String>>(index)?
+                .map(|value| parse_decimal(index, &value))
+                .transpose()
+        };
+        stmt.query_map([self.ledger_id], |row| {
+            Ok(DebtTerms {
+                account_id: row.get(0)?,
+                apr: optional(row, 1)?,
+                payment: optional(row, 2)?,
+                in_plan: row.get::<_, i64>(3)? != 0,
+            })
+        })
+        .map_err(|err| Error::other(format!("Failed to load debt terms: {}", err)))?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|err| Error::other(format!("Failed to read debt terms: {}", err)))
+    }
+
+    fn save_debt_terms(&self, terms: &DebtTerms) -> Result<()> {
+        let negative = |value: Option<Decimal>| value.is_some_and(|v| v < Decimal::ZERO);
+        if negative(terms.apr) || negative(terms.payment) {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Rates and payments can't be negative.",
+            ));
+        }
+        if terms.in_plan && terms.projectable().is_none() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "A debt in the plan needs an interest rate and a payment.",
+            ));
+        }
+        let conn = self.ready_connection()?;
+        if self.class_of(&conn, terms.account_id)? != AccountClass::Credit {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Only credit accounts can have debt terms.",
+            ));
+        }
+        let text = |value: Option<Decimal>| value.map(|v| v.normalize().to_string());
+        conn.execute(
+            "
+            INSERT INTO debt_terms (account_id, apr, payment, in_plan)
+            VALUES (?1, ?2, ?3, ?4)
+            ON CONFLICT(account_id) DO UPDATE SET
+                apr = excluded.apr, payment = excluded.payment, in_plan = excluded.in_plan
+            ",
+            params![
+                terms.account_id,
+                text(terms.apr),
+                text(terms.payment),
+                terms.in_plan as i64
+            ],
+        )
+        .map_err(|err| Error::other(format!("Failed to save debt terms: {}", err)))?;
+        Ok(())
+    }
+
+    fn delete_debt_terms(&self, account_id: i64) -> Result<()> {
+        let conn = self.ready_connection()?;
+        conn.execute(
+            "
+            DELETE FROM debt_terms
+            WHERE account_id IN (SELECT id FROM accounts WHERE id = ?1 AND ledger_id = ?2)
+            ",
+            params![account_id, self.ledger_id],
+        )
+        .map_err(|err| Error::other(format!("Failed to delete debt terms: {}", err)))?;
         Ok(())
     }
 }

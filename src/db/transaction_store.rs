@@ -448,6 +448,7 @@ mod tests {
     use crate::db::category_store::CategoryStore;
     use crate::db::database::SCHEMA_VERSION;
     use crate::db::ledger_store::{DEFAULT_LEDGER_ID, LedgerStore, SqliteLedgerStore};
+    use crate::debt::{self, DebtInput, DebtTerms, PayoffStrategy};
     use crate::model::{
         AccountClass, AccountDraft, Accounts, BudgetSchedule, InvestmentEntry,
         InvestmentEntryDraft, InvestmentEntryKind, MonthlySummary, Portfolio,
@@ -1441,6 +1442,156 @@ mod tests {
         assert_eq!(balance(MAIN_ACCOUNT, "2026-03-31"), Decimal::from(4100));
         assert_eq!(balance(visa, "2026-03-10"), Decimal::from(-1500));
         assert_eq!(balance(visa, "2026-03-31"), Decimal::from(-300));
+
+        // Overpaid into credit. Reconcile needs the sign, everything else shows zero owed.
+        let mut overpaid = rows.clone();
+        overpaid.push(transfer("2026-03-25", "350", MAIN_ACCOUNT, visa).into_transaction());
+        let card = all.get(visa).unwrap();
+        assert_eq!(
+            debt::signed_owed_on(card, &overpaid, day("2026-03-31")),
+            Decimal::from(-50)
+        );
+        assert_eq!(
+            debt::owed_on(card, &overpaid, day("2026-03-31")),
+            Decimal::ZERO
+        );
+    }
+
+    #[test]
+    fn debt_terms_follow_their_account_through_edits_copies_and_deletes() {
+        let temp = TempDb::new();
+        let accounts = investments(&temp, DEFAULT_LEDGER_ID);
+        let visa = open_account(&temp, DEFAULT_LEDGER_ID, "Visa", AccountClass::Credit);
+        let loan = open_account(&temp, DEFAULT_LEDGER_ID, "Car Loan", AccountClass::Credit);
+        let terms = |account_id, apr: &str, payment: &str| DebtTerms {
+            account_id,
+            apr: Some(Decimal::from_str(apr).unwrap()),
+            payment: Some(Decimal::from_str(payment).unwrap()),
+            in_plan: true,
+        };
+
+        accounts
+            .save_debt_terms(&terms(visa, "19.99", "90"))
+            .unwrap();
+        accounts
+            .save_debt_terms(&terms(loan, "6.5", "350"))
+            .unwrap();
+        assert!(
+            accounts
+                .save_debt_terms(&terms(MAIN_ACCOUNT, "1", "1"))
+                .is_err()
+        );
+        let paid_in_full = DebtTerms {
+            payment: None,
+            in_plan: false,
+            ..terms(visa, "19.99", "0")
+        };
+        let planned_without_payment = DebtTerms {
+            in_plan: true,
+            ..paid_in_full
+        };
+        assert!(accounts.save_debt_terms(&planned_without_payment).is_err());
+        accounts.save_debt_terms(&paid_in_full).unwrap();
+        let saved = accounts.list_debt_terms().unwrap();
+        assert_eq!(saved.len(), 2);
+        assert!(saved.contains(&paid_in_full));
+
+        let ledgers = SqliteLedgerStore::new(SqliteDatabase::new(&temp.path));
+        let copy = ledgers.copy(DEFAULT_LEDGER_ID, "What if").unwrap();
+        let copied = investments(&temp, copy.id).list_debt_terms().unwrap();
+        assert_eq!(copied.len(), 2);
+        assert_eq!(copied.iter().filter(|t| t.in_plan).count(), 1);
+        assert!(
+            copied
+                .iter()
+                .all(|t| t.account_id != visa && t.account_id != loan)
+        );
+
+        let collide = AccountDraft {
+            name: "Car Loan".to_string(),
+            kind: String::new(),
+            archived: false,
+            class: AccountClass::Cash,
+            opening_balance: Decimal::ZERO,
+            tracked_from: None,
+        };
+        assert!(accounts.update_account(visa, &collide).is_err());
+        assert!(accounts.list_debt_terms().unwrap().contains(&paid_in_full));
+
+        accounts.delete_account(loan).unwrap();
+        accounts
+            .update_account(
+                visa,
+                &AccountDraft {
+                    name: "Visa".to_string(),
+                    kind: String::new(),
+                    archived: false,
+                    class: AccountClass::Cash,
+                    opening_balance: Decimal::ZERO,
+                    tracked_from: None,
+                },
+            )
+            .unwrap();
+        assert!(accounts.list_debt_terms().unwrap().is_empty());
+
+        ledgers.delete(copy.id).unwrap();
+        let conn = SqliteDatabase::new(&temp.path)
+            .open_connection("test")
+            .unwrap();
+        let left: i64 = conn
+            .query_row("SELECT COUNT(*) FROM debt_terms", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(left, 0);
+    }
+
+    #[test]
+    fn payoff_plans_amortize_and_roll_freed_payments_forward() {
+        let money = |value: &str| Decimal::from_str(value).unwrap();
+        let input = |id, owed: &str, apr: &str, payment: Decimal| DebtInput {
+            id,
+            owed: money(owed),
+            apr: money(apr),
+            payment,
+        };
+
+        let payment = debt::payment_for_term(money("10000"), money("6"), 36).unwrap();
+        assert_eq!(payment, money("304.22"));
+        let loan = debt::simulate(
+            &[input(1, "10000", "6", payment)],
+            PayoffStrategy::Minimums,
+            Decimal::ZERO,
+        );
+        assert_eq!(loan.months(), Some(36));
+
+        // The formula alone comes up a month short here because interest rounds monthly.
+        let payment = debt::payment_for_term(money("10000"), money("6"), 57).unwrap();
+        let loan = debt::simulate(
+            &[input(1, "10000", "6", payment)],
+            PayoffStrategy::Minimums,
+            Decimal::ZERO,
+        );
+        assert_eq!(loan.months(), Some(57));
+
+        let card = input(1, "4000", "22", money("80"));
+        let car = input(2, "1000", "6", money("40"));
+        let avalanche = debt::simulate(&[card, car], PayoffStrategy::Avalanche, money("200"));
+        let snowball = debt::simulate(&[card, car], PayoffStrategy::Snowball, money("200"));
+        assert_eq!(avalanche.sequence(card.id), Some(1));
+        assert_eq!(snowball.sequence(car.id), Some(1));
+        assert!(avalanche.total_interest() < snowball.total_interest());
+
+        // Once the car is gone its 40 joins the card's 80 and the 200 extra.
+        let car_done = snowball.outcome(car.id).unwrap().paid_off_month.unwrap();
+        let next = snowball.outcome(card.id).unwrap().schedule[car_done];
+        assert_eq!(next.payment, money("320"));
+
+        // Drawn on every frame, so a balance that runs away can't be allowed to overflow.
+        let runaway = debt::simulate(
+            &[input(1, "2000000", "100", money("1000"))],
+            PayoffStrategy::Avalanche,
+            money("200"),
+        );
+        assert_eq!(runaway.months(), None);
     }
 
     #[test]

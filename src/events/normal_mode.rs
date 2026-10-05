@@ -26,6 +26,7 @@ pub fn handle_normal_mode(app: &mut App, key_event: KeyEvent) {
             }
         }
         (KeyCode::Char('A'), _) => app.open_account_scope_picker(),
+        (KeyCode::Char('D'), _) => app.enter_debts_mode(),
         (KeyCode::Char('a'), _) => app.start_adding(),
         (KeyCode::Char('d'), _) => app.prepare_for_delete(),
         (KeyCode::Char('e'), _) => app.start_editing(),

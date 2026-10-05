@@ -5,6 +5,7 @@ pub mod budget;
 pub mod category_conversion;
 pub mod category_manager;
 pub mod category_select;
+pub mod debts;
 pub mod fields;
 pub mod filter;
 pub mod fuzzy_search;

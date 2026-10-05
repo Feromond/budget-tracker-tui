@@ -1,6 +1,7 @@
 use crate::model::{Transaction, TransactionType};
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::Color;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{ListState, TableState};
 use rust_decimal::{Decimal, RoundingStrategy};
 
@@ -77,6 +78,23 @@ pub fn format_hours(amount: &Decimal, hourly_rate: Option<Decimal>) -> String {
         return format!("{:.1}h", hours);
     }
     format_amount(amount)
+}
+
+pub fn right(text: String) -> Line<'static> {
+    Line::from(text).alignment(Alignment::Right)
+}
+
+pub fn axis_amounts(y_max: f64) -> Vec<Span<'static>> {
+    [0.0, y_max * 0.5, y_max]
+        .iter()
+        .map(|value| {
+            Span::raw(match value.abs() {
+                v if v >= 1_000_000.0 => format!("{:.1}M", value / 1_000_000.0),
+                v if v >= 1_000.0 => format!("{:.0}k", value / 1_000.0),
+                _ => format!("{:.0}", value),
+            })
+        })
+        .collect()
 }
 
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

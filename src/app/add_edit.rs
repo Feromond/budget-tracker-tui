@@ -57,6 +57,7 @@ impl App {
     // Handles entering add mode, setting up default values, and resetting state.
     pub(crate) fn start_adding(&mut self) {
         self.mode = crate::app::state::AppMode::Adding;
+        self.add_return_mode = crate::app::state::AppMode::Normal;
         self.editing_index = None;
         self.add_edit_fields = Default::default();
         let today = chrono::Local::now().date_naive();
@@ -73,7 +74,10 @@ impl App {
         self.clear_status_message();
     }
     pub(crate) fn exit_adding(&mut self, cancelled: bool) {
-        self.mode = crate::app::state::AppMode::Normal;
+        self.mode = std::mem::replace(
+            &mut self.add_return_mode,
+            crate::app::state::AppMode::Normal,
+        );
         self.editing_index = None;
         self.add_edit_fields = Default::default();
         if cancelled {

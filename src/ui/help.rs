@@ -2,90 +2,105 @@ use crate::app::state::{App, AppMode};
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
+struct Hint {
+    key: &'static str,
+    label: &'static str,
+    short: &'static str,
+    color: Color,
+    /// 0 always shows. Higher numbers drop first.
+    priority: u8,
+}
+
+impl Hint {
+    const fn new(
+        key: &'static str,
+        label: &'static str,
+        short: &'static str,
+        color: Color,
+        priority: u8,
+    ) -> Self {
+        Self {
+            key,
+            label,
+            short,
+            color,
+            priority,
+        }
+    }
+}
+
+fn hint_spans(hints: &[&Hint], short: bool) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    for (index, hint) in hints.iter().enumerate() {
+        if index > 0 {
+            spans.push(Span::raw(" | "));
+        }
+        spans.push(Span::styled(
+            hint.key,
+            Style::default().fg(hint.color).add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::raw(format!(
+            " {}",
+            if short { hint.short } else { hint.label }
+        )));
+    }
+    spans
+}
+
+fn fit_hints(hints: &[Hint], width: usize) -> Vec<Span<'static>> {
+    let fits = |spans: &[Span]| spans.iter().map(Span::width).sum::<usize>() <= width;
+    let mut shown: Vec<&Hint> = hints.iter().collect();
+
+    let full = hint_spans(&shown, false);
+    if fits(&full) {
+        return full;
+    }
+    loop {
+        let mut spans = hint_spans(&shown, true);
+        let hidden = hints.len() - shown.len();
+        if hidden > 0 {
+            spans.push(Span::styled(
+                format!(" | +{} more", hidden),
+                Style::default().fg(Color::DarkGray),
+            ));
+        }
+        let droppable = shown
+            .iter()
+            .enumerate()
+            .filter(|(_, hint)| hint.priority > 0)
+            .max_by_key(|(index, hint)| (hint.priority, *index))
+            .map(|(index, _)| index);
+        match droppable {
+            Some(index) if !fits(&spans) => {
+                shown.remove(index);
+            }
+            _ => return spans,
+        }
+    }
+}
+
 pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
+    let width = area.width.saturating_sub(2) as usize;
     let help_spans = match app.mode {
-        AppMode::Normal => vec![
-            Span::styled("↑↓ Nav | ", Style::default().add_modifier(Modifier::BOLD)),
-            Span::styled(
-                "a",
-                Style::default()
-                    .fg(Color::LightGreen)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" Add | "),
-            Span::styled(
-                "e",
-                Style::default()
-                    .fg(Color::LightYellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" Edit | "),
-            Span::styled(
-                "d",
-                Style::default()
-                    .fg(Color::LightRed)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" Del | "),
-            Span::styled(
-                "r",
-                Style::default()
-                    .fg(Color::LightBlue)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" Rcr | "),
-            Span::styled(
-                "f",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" Filt | "),
-            Span::styled(
-                "s",
-                Style::default()
-                    .fg(Color::LightMagenta)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" Mth | "),
-            Span::styled(
-                "c",
-                Style::default()
-                    .fg(Color::LightCyan)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" Cate | "),
-            Span::styled(
-                "b",
-                Style::default()
-                    .fg(Color::LightYellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" Budg | "),
-            Span::styled(
-                "i",
-                Style::default()
-                    .fg(Color::LightCyan)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" Inv | "),
-            Span::styled(
-                "A",
-                Style::default()
-                    .fg(Color::LightBlue)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" Acct | "),
-            Span::styled(
-                "q/Esc",
-                Style::default()
-                    .fg(Color::Magenta)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" Quit | "),
-            Span::styled("o", Style::default().fg(Color::Red)).add_modifier(Modifier::BOLD),
-            Span::raw(" ⚙"),
-        ],
+        AppMode::Normal => fit_hints(
+            &[
+                Hint::new("↑↓", "Nav", "Nav", Color::White, 6),
+                Hint::new("a", "Add", "Add", Color::LightGreen, 1),
+                Hint::new("e", "Edit", "Edit", Color::LightYellow, 1),
+                Hint::new("d", "Delete", "Del", Color::LightRed, 1),
+                Hint::new("r", "Recurring", "Rcr", Color::LightBlue, 5),
+                Hint::new("f", "Filter", "Filt", Color::Cyan, 2),
+                Hint::new("s", "Summary", "Mth", Color::LightMagenta, 3),
+                Hint::new("c", "Cate", "Cate", Color::LightCyan, 4),
+                Hint::new("b", "Budget", "Budg", Color::LightYellow, 3),
+                Hint::new("i", "Investments", "Inv", Color::LightCyan, 3),
+                Hint::new("D", "Debts", "Debt", Color::Yellow, 3),
+                Hint::new("A", "Accounts", "Acct", Color::LightBlue, 4),
+                Hint::new("q/Esc", "Quit", "Quit", Color::Magenta, 0),
+                Hint::new("o", "⚙", "⚙", Color::Red, 0),
+            ],
+            width,
+        ),
         AppMode::Adding | AppMode::Editing => vec![
             Span::raw("Tab/↑↓ Nav | "),
             Span::raw("←→ Toggle | "),
@@ -367,6 +382,49 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
             Span::raw(" Cancel"),
         ],
         AppMode::ConfirmInvestmentDelete => vec![
+            Span::styled("y", Style::default().fg(Color::LightGreen)),
+            Span::raw(": Confirm | "),
+            Span::styled("n/Esc", Style::default().fg(Color::LightRed)),
+            Span::raw(": Cancel"),
+        ],
+        AppMode::Debts => fit_hints(
+            &[
+                Hint::new("↑↓", "Nav", "Nav", Color::White, 6),
+                Hint::new("←→", "Extra", "Extra", Color::LightGreen, 2),
+                Hint::new("s", "Strategy", "Strat", Color::LightCyan, 2),
+                Hint::new("Enter", "Detail", "Detail", Color::LightCyan, 3),
+                Hint::new("a", "Add", "Add", Color::LightGreen, 1),
+                Hint::new("e", "Edit", "Edit", Color::LightYellow, 1),
+                Hint::new("p", "Pay", "Pay", Color::LightGreen, 1),
+                Hint::new("r", "Reconcile", "Recon", Color::Yellow, 3),
+                Hint::new("d", "Delete", "Del", Color::LightRed, 4),
+                Hint::new("A", "Archived", "Arch", Color::LightBlue, 5),
+                Hint::new("q/Esc", "Back", "Back", Color::Magenta, 0),
+            ],
+            width,
+        ),
+        AppMode::DebtDetail => fit_hints(
+            &[
+                Hint::new("↑↓", "Scroll", "Rows", Color::White, 6),
+                Hint::new("Tab", "History/Schedule", "Panel", Color::LightBlue, 2),
+                Hint::new("←→", "Extra", "Extra", Color::LightGreen, 2),
+                Hint::new("s", "Strategy", "Strat", Color::LightCyan, 2),
+                Hint::new("e", "Edit", "Edit", Color::LightYellow, 1),
+                Hint::new("p", "Pay", "Pay", Color::LightGreen, 1),
+                Hint::new("r", "Reconcile", "Recon", Color::Yellow, 3),
+                Hint::new("q/Esc", "Back", "Back", Color::Magenta, 0),
+            ],
+            width,
+        ),
+        AppMode::DebtEditor | AppMode::DebtReconcile => vec![
+            Span::raw("Tab/↑↓ Nav | "),
+            Span::raw("←→ Adjust | "),
+            Span::styled("Enter", Style::default().fg(Color::LightGreen)),
+            Span::raw(" Save | "),
+            Span::styled("Esc", Style::default().fg(Color::LightRed)),
+            Span::raw(" Cancel"),
+        ],
+        AppMode::ConfirmDebtDelete => vec![
             Span::styled("y", Style::default().fg(Color::LightGreen)),
             Span::raw(": Confirm | "),
             Span::styled("n/Esc", Style::default().fg(Color::LightRed)),

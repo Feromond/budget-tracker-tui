@@ -197,6 +197,20 @@ impl LedgerStore for SqliteLedgerStore {
 
         tx.execute(
             "
+            INSERT INTO debt_terms (account_id, apr, payment, in_plan)
+            SELECT copy.id, d.apr, d.payment, d.in_plan
+            FROM debt_terms d
+            JOIN accounts source ON source.id = d.account_id
+            JOIN accounts copy
+                ON copy.ledger_id = ?1 AND copy.name = source.name
+            WHERE source.ledger_id = ?2
+            ",
+            params![ledger.id, source_id],
+        )
+        .map_err(|err| Error::other(format!("Failed to copy debt terms: {}", err)))?;
+
+        tx.execute(
+            "
             INSERT INTO transactions (
                 ledger_id,
                 date,
@@ -314,6 +328,14 @@ impl LedgerStore for SqliteLedgerStore {
             [id],
         )
         .map_err(|err| Error::other(format!("Failed to delete investment entries: {}", err)))?;
+        tx.execute(
+            "
+            DELETE FROM debt_terms
+            WHERE account_id IN (SELECT id FROM accounts WHERE ledger_id = ?1)
+            ",
+            [id],
+        )
+        .map_err(|err| Error::other(format!("Failed to delete debt terms: {}", err)))?;
         tx.execute("DELETE FROM accounts WHERE ledger_id = ?1", [id])
             .map_err(|err| Error::other(format!("Failed to delete accounts: {}", err)))?;
         let deleted = tx

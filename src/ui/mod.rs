@@ -3,6 +3,7 @@ pub mod backup;
 pub mod budget;
 pub mod category_manager;
 pub mod category_summary;
+pub mod debts;
 pub mod dialog;
 pub mod filter;
 pub mod form;
@@ -31,6 +32,14 @@ fn render_investment_background(f: &mut Frame, app: &mut App, area: Rect) {
         investments::render_investment_detail(f, app, area);
     } else {
         investments::render_investments_view(f, app, area);
+    }
+}
+
+fn render_debt_background(f: &mut Frame, app: &mut App, area: Rect) {
+    if app.debt_detail_id.is_some() {
+        debts::render_debt_detail(f, app, area);
+    } else {
+        debts::render_debts_view(f, app, area);
     }
 }
 
@@ -89,6 +98,11 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             | AppMode::InvestmentAccountEditor
             | AppMode::InvestmentEntryEditor
             | AppMode::ConfirmInvestmentDelete
+            | AppMode::Debts
+            | AppMode::DebtDetail
+            | AppMode::DebtEditor
+            | AppMode::DebtReconcile
+            | AppMode::ConfirmDebtDelete
     ) {
         0
     } else {
@@ -236,6 +250,21 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
         AppMode::ConfirmInvestmentDelete => {
             render_investment_background(f, app, main_area);
             dialog::render_confirmation_dialog(f, &app.investment_delete_prompt, main_area);
+        }
+        AppMode::Debts | AppMode::DebtDetail => {
+            render_debt_background(f, app, main_area);
+        }
+        AppMode::DebtEditor => {
+            render_debt_background(f, app, main_area);
+            debts::render_debt_editor(f, app, main_area);
+        }
+        AppMode::DebtReconcile => {
+            render_debt_background(f, app, main_area);
+            debts::render_reconcile_popup(f, app, main_area);
+        }
+        AppMode::ConfirmDebtDelete => {
+            render_debt_background(f, app, main_area);
+            dialog::render_confirmation_dialog(f, &app.debt_delete_prompt, main_area);
         }
         AppMode::RecurringSettings => {
             recurring::render_recurring_settings(f, app, main_area);

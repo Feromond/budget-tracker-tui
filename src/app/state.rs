@@ -1,6 +1,7 @@
 use crate::app::fields::{
-    AccountField, AddEditField, AdvancedFilterField, CategoryEditField, FieldSet, FilterCriterion,
-    InvestmentAccountField, InvestmentEntryField, RecurringField, SelectingField,
+    AccountField, AddEditField, AdvancedFilterField, CategoryEditField, DebtField, FieldSet,
+    FilterCriterion, InvestmentAccountField, InvestmentEntryField, ReconcileField, RecurringField,
+    SelectingField,
 };
 use crate::app::update_checker;
 use crate::config::{AppSettings, load_settings, save_settings};
@@ -73,6 +74,11 @@ pub enum AppMode {
     InvestmentAccountEditor,
     InvestmentEntryEditor,
     ConfirmInvestmentDelete,
+    Debts,
+    DebtDetail,
+    DebtEditor,
+    DebtReconcile,
+    ConfirmDebtDelete,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -230,6 +236,23 @@ pub struct App {
     pub(crate) editing_investment_entry_id: Option<i64>,
     pub(crate) investment_delete_target: Option<InvestmentDeleteTarget>,
     pub(crate) investment_delete_prompt: String,
+    pub(crate) debt_terms: HashMap<i64, crate::debt::DebtTerms>,
+    pub(crate) debt_table_state: TableState,
+    pub(crate) debt_history_table_state: TableState,
+    pub(crate) debt_schedule_table_state: TableState,
+    pub(crate) debt_schedule_focused: bool,
+    pub(crate) debt_detail_id: Option<i64>,
+    pub(crate) debt_strategy: crate::debt::PayoffStrategy,
+    pub(crate) debt_extra: Decimal,
+    pub(crate) show_archived_debts: bool,
+    pub(crate) debt_fields: FieldSet<DebtField, 9>,
+    pub(crate) debt_cursor: usize,
+    pub(crate) editing_debt_id: Option<i64>,
+    pub(crate) reconcile_fields: FieldSet<ReconcileField, 2>,
+    pub(crate) reconcile_cursor: usize,
+    pub(crate) debt_delete_id: Option<i64>,
+    pub(crate) debt_delete_prompt: String,
+    pub(crate) add_return_mode: AppMode,
     // Budget
     pub(crate) hourly_rate: Option<Decimal>,
     pub(crate) show_hours: bool,
@@ -502,6 +525,23 @@ impl App {
             editing_investment_entry_id: None,
             investment_delete_target: None,
             investment_delete_prompt: String::new(),
+            debt_terms: HashMap::new(),
+            debt_table_state: TableState::default(),
+            debt_history_table_state: TableState::default(),
+            debt_schedule_table_state: TableState::default(),
+            debt_schedule_focused: false,
+            debt_detail_id: None,
+            debt_strategy: crate::debt::PayoffStrategy::default(),
+            debt_extra: Decimal::ZERO,
+            show_archived_debts: false,
+            debt_fields: Default::default(),
+            debt_cursor: 0,
+            editing_debt_id: None,
+            reconcile_fields: Default::default(),
+            reconcile_cursor: 0,
+            debt_delete_id: None,
+            debt_delete_prompt: String::new(),
+            add_return_mode: AppMode::Normal,
             hourly_rate: loaded_settings.hourly_rate,
             show_hours: loaded_settings.show_hours.unwrap_or(false),
             fuzzy_search_mode: loaded_settings.fuzzy_search_mode.unwrap_or(false),
@@ -709,6 +749,11 @@ impl App {
                 .flat_map(InvestmentEntry::transfer_flows),
         );
         self.portfolio = Portfolio::new(self.accounts.investments(), entries);
+        self.debt_terms = store
+            .list_debt_terms()?
+            .into_iter()
+            .map(|terms| (terms.account_id, terms))
+            .collect();
         Ok(())
     }
 

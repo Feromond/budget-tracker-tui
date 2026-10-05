@@ -71,6 +71,7 @@ brew install budget-tracker
 - Monthly and category summaries with interactive charts
 - Monthly and per-category budgets without changing past months
 - Manual investment tracking for valuations, contributions, and growth
+- Debt payoff planning with Avalanche and Snowball strategies
 - Cash, credit, and investment accounts, with transfers between them that never count as spending
 - Multiple ledgers for separate accounts or forecasts
 - CSV import/export (duplicates skipped on import)

@@ -448,6 +448,7 @@ mod tests {
     use crate::db::category_store::CategoryStore;
     use crate::db::database::SCHEMA_VERSION;
     use crate::db::ledger_store::{DEFAULT_LEDGER_ID, LedgerStore, SqliteLedgerStore};
+    use crate::debt::{self, DebtInput, DebtTerms, PayoffStrategy};
     use crate::model::{
         AccountClass, AccountDraft, Accounts, BudgetSchedule, InvestmentEntry,
         InvestmentEntryDraft, InvestmentEntryKind, MonthlySummary, Portfolio,
@@ -1441,6 +1442,331 @@ mod tests {
         assert_eq!(balance(MAIN_ACCOUNT, "2026-03-31"), Decimal::from(4100));
         assert_eq!(balance(visa, "2026-03-10"), Decimal::from(-1500));
         assert_eq!(balance(visa, "2026-03-31"), Decimal::from(-300));
+    }
+
+    #[test]
+    fn debt_terms_follow_their_account_through_edits_copies_and_deletes() {
+        let temp = TempDb::new();
+        let accounts = investments(&temp, DEFAULT_LEDGER_ID);
+        let visa = open_account(&temp, DEFAULT_LEDGER_ID, "Visa", AccountClass::Credit);
+        let loan = open_account(&temp, DEFAULT_LEDGER_ID, "Car Loan", AccountClass::Credit);
+        let terms = |account_id, apr: &str, payment: &str| DebtTerms {
+            account_id,
+            apr: Some(Decimal::from_str(apr).unwrap()),
+            payment: Some(Decimal::from_str(payment).unwrap()),
+            in_plan: true,
+        };
+
+        accounts
+            .save_debt_terms(&terms(visa, "19.99", "90"))
+            .unwrap();
+        accounts
+            .save_debt_terms(&terms(loan, "6.5", "350"))
+            .unwrap();
+        assert!(
+            accounts
+                .save_debt_terms(&terms(MAIN_ACCOUNT, "1", "1"))
+                .is_err()
+        );
+        let paid_in_full = DebtTerms {
+            payment: None,
+            in_plan: false,
+            ..terms(visa, "19.99", "0")
+        };
+        let planned_without_payment = DebtTerms {
+            in_plan: true,
+            ..paid_in_full
+        };
+        assert!(accounts.save_debt_terms(&planned_without_payment).is_err());
+        accounts.save_debt_terms(&paid_in_full).unwrap();
+        let saved = accounts.list_debt_terms().unwrap();
+        assert_eq!(saved.len(), 2);
+        assert!(saved.contains(&paid_in_full));
+        assert_eq!(paid_in_full.projectable(), None);
+
+        let ledgers = SqliteLedgerStore::new(SqliteDatabase::new(&temp.path));
+        let copy = ledgers.copy(DEFAULT_LEDGER_ID, "What if").unwrap();
+        let copied = investments(&temp, copy.id).list_debt_terms().unwrap();
+        assert_eq!(copied.len(), 2);
+        assert_eq!(copied.iter().filter(|t| t.in_plan).count(), 1);
+        assert!(
+            copied
+                .iter()
+                .all(|t| t.account_id != visa && t.account_id != loan)
+        );
+
+        let collide = AccountDraft {
+            name: "Car Loan".to_string(),
+            kind: String::new(),
+            archived: false,
+            class: AccountClass::Cash,
+            opening_balance: Decimal::ZERO,
+            tracked_from: None,
+        };
+        assert!(accounts.update_account(visa, &collide).is_err());
+        assert!(accounts.list_debt_terms().unwrap().contains(&paid_in_full));
+
+        accounts.delete_account(loan).unwrap();
+        accounts
+            .update_account(
+                visa,
+                &AccountDraft {
+                    name: "Visa".to_string(),
+                    kind: String::new(),
+                    archived: false,
+                    class: AccountClass::Cash,
+                    opening_balance: Decimal::ZERO,
+                    tracked_from: None,
+                },
+            )
+            .unwrap();
+        assert!(accounts.list_debt_terms().unwrap().is_empty());
+
+        ledgers.delete(copy.id).unwrap();
+        let conn = SqliteDatabase::new(&temp.path)
+            .open_connection("test")
+            .unwrap();
+        let left: i64 = conn
+            .query_row("SELECT COUNT(*) FROM debt_terms", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(left, 0);
+    }
+
+    #[test]
+    fn what_a_debt_owes_comes_from_its_transactions() {
+        let temp = TempDb::new();
+        let accounts = investments(&temp, DEFAULT_LEDGER_ID);
+        let visa = open_account(&temp, DEFAULT_LEDGER_ID, "Visa", AccountClass::Credit);
+        let store = temp.store();
+        for tx in [
+            TransactionDraft {
+                account_id: visa,
+                ..draft("2026-02-15", "Before tracking", "999", "Shopping")
+            },
+            TransactionDraft {
+                account_id: visa,
+                ..draft("2026-03-02", "Phone", "500", "Shopping")
+            },
+            transfer("2026-03-20", "200", MAIN_ACCOUNT, visa),
+            TransactionDraft {
+                account_id: visa,
+                subcategory: "Interest Charges".to_string(),
+                ..draft("2026-03-31", "Interest", "10", debt::DEBT_CATEGORY)
+            },
+        ] {
+            store.insert(&tx).unwrap();
+        }
+        accounts
+            .update_account(
+                visa,
+                &AccountDraft {
+                    name: "Visa".to_string(),
+                    kind: String::new(),
+                    archived: false,
+                    class: AccountClass::Credit,
+                    opening_balance: Decimal::from(-1000),
+                    tracked_from: Some(day("2026-02-28")),
+                },
+            )
+            .unwrap();
+        let account = accounts
+            .list_accounts()
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == visa)
+            .unwrap();
+        let rows = store.list().unwrap();
+
+        assert_eq!(
+            debt::owed_on(&account, &rows, day("2026-03-31")),
+            Decimal::from(1310)
+        );
+        assert_eq!(
+            debt::owed_series(
+                &account,
+                &rows,
+                &[day("2026-01-01"), day("2026-03-10"), day("2026-04-01")]
+            ),
+            vec![
+                Decimal::from(1000),
+                Decimal::from(1500),
+                Decimal::from(1310)
+            ]
+        );
+        let activity = debt::activity(&account, &rows, day("2026-03-31"));
+        assert_eq!(activity.charged, Decimal::from(1510));
+        assert_eq!(activity.paid, Decimal::from(200));
+        assert_eq!(activity.paid_this_month, Decimal::from(200));
+        assert_eq!(activity.interest_last_year, Decimal::from(10));
+
+        let later_snapshot = crate::model::Account {
+            tracked_from: Some(day("2026-03-22")),
+            ..account.clone()
+        };
+        let activity = debt::activity(&later_snapshot, &rows, day("2026-03-31"));
+        assert_eq!(activity.paid_this_month, Decimal::from(200));
+        assert_eq!(activity.interest_last_year, Decimal::from(10));
+
+        let refund = TransactionDraft {
+            transaction_type: TransactionType::Income,
+            account_id: visa,
+            ..draft("2026-03-28", "Refund", "30", "Shopping")
+        };
+        let mut with_refund = rows.clone();
+        with_refund.push(refund.into_transaction());
+        let activity = debt::activity(&account, &with_refund, day("2026-03-31"));
+        assert_eq!(activity.paid, Decimal::from(230));
+        assert_eq!(activity.paid_this_month, Decimal::from(200));
+
+        let overpaid = TransactionDraft {
+            amount: Decimal::from(1360),
+            ..transfer("2026-03-25", "0", MAIN_ACCOUNT, visa)
+        };
+        let mut with_credit = rows.clone();
+        with_credit.push(overpaid.into_transaction());
+        assert_eq!(
+            debt::owed_on(&account, &with_credit, day("2026-03-31")),
+            Decimal::ZERO
+        );
+        assert_eq!(
+            debt::signed_owed_on(&account, &with_credit, day("2026-03-31")),
+            Decimal::from(-50)
+        );
+
+        store
+            .insert(&TransactionDraft {
+                account_id: visa,
+                subcategory: "Mortgage Interest".to_string(),
+                ..draft("2026-03-31", "Interest", "5", "Housing")
+            })
+            .unwrap();
+        let rows = store.list().unwrap();
+        let activity = debt::activity(&account, &rows, day("2026-03-31"));
+        assert_eq!(activity.interest_last_year, Decimal::from(15));
+        let mortgage = crate::model::Account {
+            name: "House".to_string(),
+            kind: "Mortgage".to_string(),
+            ..account.clone()
+        };
+        assert_eq!(
+            debt::interest_category(&mortgage)[0],
+            ("Housing", "Mortgage Interest")
+        );
+        assert_eq!(debt::interest_category(&account)[0].1, "Interest Charges");
+    }
+
+    #[test]
+    fn payoff_plans_amortize_and_roll_freed_payments_forward() {
+        let money = |value: &str| Decimal::from_str(value).unwrap();
+
+        let payment = debt::payment_for_term(money("10000"), money("6"), 36).unwrap();
+        assert_eq!(payment, money("304.22"));
+        let loan = debt::simulate(
+            &[DebtInput {
+                id: 1,
+                owed: money("10000"),
+                apr: money("6"),
+                payment,
+            }],
+            PayoffStrategy::Minimums,
+            Decimal::ZERO,
+        );
+        assert_eq!(loan.months(), Some(36));
+        assert!(loan.total_interest() > money("950") && loan.total_interest() < money("953"));
+
+        let card = DebtInput {
+            id: 1,
+            owed: money("4000"),
+            apr: money("22"),
+            payment: money("80"),
+        };
+        let car = DebtInput {
+            id: 2,
+            owed: money("1000"),
+            apr: money("6"),
+            payment: money("40"),
+        };
+        let plan = |strategy| debt::simulate(&[card, car], strategy, money("200"));
+        let (minimums, avalanche, snowball) = (
+            plan(PayoffStrategy::Minimums),
+            plan(PayoffStrategy::Avalanche),
+            plan(PayoffStrategy::Snowball),
+        );
+        assert_eq!(avalanche.sequence(card.id), Some(1));
+        assert_eq!(snowball.sequence(car.id), Some(1));
+        assert!(avalanche.total_interest() < snowball.total_interest());
+        assert!(snowball.total_interest() < minimums.total_interest());
+        assert!(avalanche.months().unwrap() < minimums.months().unwrap());
+
+        let car_done = snowball.outcome(car.id).unwrap().paid_off_month.unwrap();
+        let next = snowball.outcome(card.id).unwrap().schedule[car_done];
+        assert_eq!(next.month, car_done + 1);
+        assert_eq!(next.payment, money("320"));
+
+        let done = DebtInput {
+            id: 3,
+            owed: Decimal::ZERO,
+            ..car
+        };
+        let with_done = debt::simulate(&[card, done], PayoffStrategy::Avalanche, money("200"));
+        let without = debt::simulate(&[card], PayoffStrategy::Avalanche, money("200"));
+        assert_eq!(
+            with_done.outcome(card.id).unwrap().schedule[0].payment,
+            money("320")
+        );
+        assert!(with_done.months() < without.months());
+        assert_eq!(with_done.sequence(done.id), None);
+        assert_eq!(with_done.sequence(card.id), Some(1));
+
+        let stuck = debt::simulate(
+            &[DebtInput {
+                id: 1,
+                owed: money("1000"),
+                apr: money("24"),
+                payment: money("20"),
+            }],
+            PayoffStrategy::Minimums,
+            Decimal::ZERO,
+        );
+        assert_eq!(stuck.months(), None);
+        assert_eq!(stuck.totals.len(), debt::MAX_MONTHS + 1);
+
+        assert_eq!(
+            debt::payment_for_term(money("72000"), Decimal::ZERO, 720),
+            Some(money("100"))
+        );
+
+        let runaway = debt::simulate(
+            &[DebtInput {
+                id: 1,
+                owed: money("2000000"),
+                apr: money("100"),
+                payment: money("1000"),
+            }],
+            PayoffStrategy::Avalanche,
+            money("200"),
+        );
+        assert_eq!(runaway.months(), None);
+
+        for months in 1..=360 {
+            for (owed, apr) in [("10000", "6"), ("5000", "20"), ("250000", "3")] {
+                let payment = debt::payment_for_term(money(owed), money(apr), months).unwrap();
+                let plan = debt::simulate(
+                    &[DebtInput {
+                        id: 1,
+                        owed: money(owed),
+                        apr: money(apr),
+                        payment,
+                    }],
+                    PayoffStrategy::Minimums,
+                    Decimal::ZERO,
+                );
+                assert!(
+                    plan.months().unwrap() <= months as usize,
+                    "{owed} at {apr}% over {months}"
+                );
+            }
+        }
     }
 
     #[test]

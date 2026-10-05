@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 /// The latest schema version understood by this build. Bump this and add a matching arm in
 /// [`SqliteDatabase::apply_migration`] whenever the schema changes.
-pub const SCHEMA_VERSION: i64 = 6;
+pub const SCHEMA_VERSION: i64 = 7;
 
 #[derive(Debug, Clone)]
 pub struct SqliteDatabase {
@@ -270,6 +270,20 @@ impl SqliteDatabase {
                 )
                 .map_err(|err| Error::other(format!("Migration v5 failed: {}", err))),
             6 => Self::migrate_to_accounts(conn),
+            7 => conn
+                .execute_batch(
+                    "
+                    CREATE TABLE IF NOT EXISTS debt_terms (
+                        account_id INTEGER PRIMARY KEY
+                            REFERENCES accounts(id) ON DELETE CASCADE,
+                        apr TEXT NULL,
+                        payment TEXT NULL,
+                        in_plan INTEGER NOT NULL DEFAULT 1,
+                        CHECK (in_plan = 0 OR (apr IS NOT NULL AND payment IS NOT NULL))
+                    );
+                    ",
+                )
+                .map_err(|err| Error::other(format!("Migration v7 failed: {}", err))),
             _ => Ok(()),
         }
     }

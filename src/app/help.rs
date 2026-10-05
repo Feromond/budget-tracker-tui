@@ -107,6 +107,12 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 ),
             ),
             KeyBindingInfo::new(
+                "Shift+D",
+                "Debts",
+                "Actions",
+                Some("Balances, interest estimates, and payoff plans."),
+            ),
+            KeyBindingInfo::new(
                 "Shift+A",
                 "Show an account",
                 "Navigation",
@@ -778,6 +784,128 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("Esc", "Cancel", "System", None),
         ],
         AppMode::ConfirmInvestmentDelete => vec![
+            KeyBindingInfo::new("y", "Confirm deletion", "Actions", None),
+            KeyBindingInfo::new("n/Esc", "Cancel deletion", "Actions", None),
+        ],
+        AppMode::Debts => vec![
+            KeyBindingInfo::new("↑/↓", "Navigate debts", "Navigation", None),
+            KeyBindingInfo::new(
+                "←/→",
+                "Change the extra payment",
+                "Plan",
+                Some("Adjust extra by 25 a month (Shift for 100). The target payment is green."),
+            ),
+            KeyBindingInfo::new(
+                "s",
+                "Switch strategy",
+                "Plan",
+                Some(
+                    "Avalanche pays the highest rate first; Snowball pays the smallest balance first. Both roll payments into the next debt. Minimums only has no extra or rollover.",
+                ),
+            ),
+            KeyBindingInfo::new(
+                "Enter",
+                "Open debt detail",
+                "Actions",
+                Some("History, a balance chart, and a monthly payoff schedule."),
+            ),
+            KeyBindingInfo::new(
+                "a",
+                "Add debt",
+                "Actions",
+                Some(
+                    "Enter the balance, rate, and payment. Months Left can calculate a loan payment.",
+                ),
+            ),
+            KeyBindingInfo::new("e", "Edit selected debt", "Actions", None),
+            KeyBindingInfo::new(
+                "p",
+                "Record a payment",
+                "Actions",
+                Some("Opens a cash transfer with your monthly payment filled in."),
+            ),
+            KeyBindingInfo::new(
+                "r",
+                "Reconcile with a statement",
+                "Actions",
+                Some(
+                    "Enter the statement balance. A higher balance opens an interest expense; a lower one opens income on the card.",
+                ),
+            ),
+            KeyBindingInfo::new(
+                "d",
+                "Delete selected debt",
+                "Actions",
+                Some("Only works for debts with no transactions. Archive the rest (e)."),
+            ),
+            KeyBindingInfo::new("A", "Show/hide archived debts", "Actions", None),
+            KeyBindingInfo::new("q/Esc", "Back to transactions", "System", None),
+        ],
+        AppMode::DebtDetail => vec![
+            KeyBindingInfo::new("↑/↓", "Scroll the active table", "Navigation", None),
+            KeyBindingInfo::new(
+                "Tab",
+                "Switch between history and schedule",
+                "Navigation",
+                Some("The table marked ↑↓ scrolls."),
+            ),
+            KeyBindingInfo::new("←/→", "Change the extra payment", "Plan", None),
+            KeyBindingInfo::new("s", "Switch strategy", "Plan", None),
+            KeyBindingInfo::new("e", "Edit this debt", "Actions", None),
+            KeyBindingInfo::new("p", "Record a payment", "Actions", None),
+            KeyBindingInfo::new("r", "Reconcile with a statement", "Actions", None),
+            KeyBindingInfo::new("q/Esc", "Back to the debts list", "System", None),
+        ],
+        AppMode::DebtEditor => vec![
+            KeyBindingInfo::new(
+                "Tab/Shift+Tab/↑↓",
+                "Move between fields",
+                "Navigation",
+                None,
+            ),
+            KeyBindingInfo::new(
+                "←/→",
+                "Move cursor, step the date, or toggle status",
+                "Navigation",
+                None,
+            ),
+            KeyBindingInfo::new(
+                "Owed / As Of",
+                "Starting amount owed",
+                "Fields",
+                Some("Balance on the As Of date. Leave the date blank to count all transactions."),
+            ),
+            KeyBindingInfo::new(
+                "Payoff Plan",
+                "In plan or Track only",
+                "Fields",
+                Some(
+                    "Track only excludes the debt from the plan and chart. Rate and payment are optional.",
+                ),
+            ),
+            KeyBindingInfo::new(
+                "Monthly Payment",
+                "Your minimum or loan payment",
+                "Fields",
+                Some("Leave blank and set Months Left to calculate a payment."),
+            ),
+            KeyBindingInfo::new("Enter", "Save debt", "Actions", None),
+            KeyBindingInfo::new("Esc", "Cancel", "System", None),
+        ],
+        AppMode::DebtReconcile => vec![
+            KeyBindingInfo::new("Tab/↑↓", "Move between fields", "Navigation", None),
+            KeyBindingInfo::new("←/→", "Move cursor or step the date", "Navigation", None),
+            KeyBindingInfo::new(
+                "Enter",
+                "Compare with what's recorded",
+                "Actions",
+                Some(
+                    "Opens a transaction for the difference. Review and save it to apply the change.",
+                ),
+            ),
+            KeyBindingInfo::new("Esc", "Cancel", "System", None),
+        ],
+        AppMode::ConfirmDebtDelete => vec![
             KeyBindingInfo::new("y", "Confirm deletion", "Actions", None),
             KeyBindingInfo::new("n/Esc", "Cancel deletion", "Actions", None),
         ],

@@ -74,6 +74,25 @@ impl App {
                     field.kind(),
                 ))
             }
+            AppMode::DebtEditor => {
+                let field = self.debt_fields.focused();
+                if !field.kind().is_editable() {
+                    return None;
+                }
+                Some((
+                    &mut self.debt_fields[field],
+                    &mut self.debt_cursor,
+                    field.kind(),
+                ))
+            }
+            AppMode::DebtReconcile => {
+                let field = self.reconcile_fields.focused();
+                Some((
+                    &mut self.reconcile_fields[field],
+                    &mut self.reconcile_cursor,
+                    field.kind(),
+                ))
+            }
             AppMode::BudgetCategoryEditor => Some((
                 &mut self.budget_edit_input,
                 &mut self.budget_edit_cursor,

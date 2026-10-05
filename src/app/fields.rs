@@ -273,6 +273,31 @@ form_fields! {
     }
 }
 
+form_fields! {
+    pub enum DebtField {
+        Name => FieldKind::Text, "Debt Name";
+        Kind => FieldKind::Text, "Type", "(Optional - e.g. Visa, Car Loan, Mortgage)";
+        Owed => FieldKind::Amount, "Owed", "(What you owed on the As Of date)";
+        AsOf => FieldKind::Date, "As Of (YYYY-MM-DD)",
+            "(Optional - statement date. Leave blank to count all transactions)";
+        Plan => FieldKind::Toggle, "Payoff Plan",
+            "(◀/▶ - Track only for a card you pay in full, or a mortgage)";
+        Apr => FieldKind::Amount, "Interest Rate (APR %)";
+        Payment => FieldKind::Amount, "Monthly Payment", "(Your minimum or fixed loan payment)";
+        MonthsLeft => FieldKind::Amount, "Months Left",
+            "(Optional - works out the payment if that's blank)";
+        Status => FieldKind::Toggle, "Status", "(◀/▶ to toggle)";
+    }
+}
+
+form_fields! {
+    pub enum ReconcileField {
+        Balance => FieldKind::Amount, "Statement Balance", "(What the statement says you owe)";
+        Date => FieldKind::Date, "Statement Date (YYYY-MM-DD)",
+            "(◀/▶ or +/- for days, Shift+◀/▶ for months)";
+    }
+}
+
 /// Which form a category picker was opened from. The two forms have separate field sets, so a
 /// shared index could send the picked value back to the wrong one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

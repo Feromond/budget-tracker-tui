@@ -2,6 +2,7 @@ mod app;
 mod config;
 mod csv_io;
 mod db;
+mod debt;
 mod events;
 mod model;
 mod recurring;

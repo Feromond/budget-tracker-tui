@@ -2,7 +2,9 @@ use crate::app::state::App;
 use crate::debt::{self, DebtOutcome, MAX_MONTHS, PayoffPlan, PayoffStrategy};
 use crate::model::{Account, DATE_FORMAT};
 use crate::ui::form::render_field_form;
-use crate::ui::helpers::{TRANSFER_COLOR, centered_rect, clamp_table_scroll, format_amount};
+use crate::ui::helpers::{
+    TRANSFER_COLOR, axis_amounts, centered_rect, clamp_table_scroll, format_amount, right,
+};
 use crate::validation::add_months;
 use chrono::{Duration, NaiveDate};
 use ratatui::prelude::*;
@@ -43,10 +45,6 @@ fn separator() -> Span<'static> {
 
 fn dim(text: impl Into<String>) -> Span<'static> {
     Span::styled(text.into(), Style::default().fg(Color::DarkGray))
-}
-
-fn right(text: String) -> Line<'static> {
-    Line::from(text).alignment(Alignment::Right)
 }
 
 fn stat_line(label: &str, value: Vec<Span<'static>>) -> Line<'static> {
@@ -286,12 +284,7 @@ fn render_overview_stats(f: &mut Frame, app: &App, plans: &Plans, area: Rect) {
     let today = app.today();
     let debts = app.debt_accounts();
     let owed: Decimal = debts.iter().map(|account| app.debt_owed(account)).sum();
-    let payments: Decimal = app.debt_plan_payments()
-        + if app.debt_strategy.uses_extra() {
-            app.debt_extra
-        } else {
-            Decimal::ZERO
-        };
+    let payments = app.debt_monthly_total();
     let paid_this_month: Decimal = debts
         .iter()
         .map(|account| app.debt_activity(account).paid_this_month)
@@ -719,19 +712,6 @@ fn render_chart(
     f.render_widget(chart, area);
 }
 
-fn axis_amounts(y_max: f64) -> Vec<Span<'static>> {
-    [0.0, y_max * 0.5, y_max]
-        .iter()
-        .map(|value| {
-            Span::raw(match value.abs() {
-                v if v >= 1_000_000.0 => format!("{:.1}M", value / 1_000_000.0),
-                v if v >= 1_000.0 => format!("{:.0}k", value / 1_000.0),
-                _ => format!("{:.0}", value),
-            })
-        })
-        .collect()
-}
-
 fn render_debts_table(f: &mut Frame, app: &mut App, plans: &Plans, area: Rect) {
     let today = app.today();
     let show_kind = area.width >= 100;
@@ -851,14 +831,7 @@ fn render_debts_table(f: &mut Frame, app: &mut App, plans: &Plans, area: Rect) {
         Cell::from(right(format_amount(&total_owed)))
             .style(Style::default().fg(OWED_COLOR).add_modifier(Modifier::BOLD)),
         Cell::from(""),
-        Cell::from(right(format_amount(
-            &(app.debt_plan_payments()
-                + if app.debt_strategy.uses_extra() {
-                    app.debt_extra
-                } else {
-                    Decimal::ZERO
-                }),
-        ))),
+        Cell::from(right(format_amount(&app.debt_monthly_total()))),
         Cell::from(""),
         Cell::from(""),
         Cell::from(right(format_amount(&plans.current.total_interest())))

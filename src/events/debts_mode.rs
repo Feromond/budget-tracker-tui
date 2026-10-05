@@ -35,8 +35,8 @@ fn handle_overview(app: &mut App, key_event: KeyEvent) {
     }
     match (key_event.code, key_event.modifiers) {
         (KeyCode::Char('q'), _) | (KeyCode::Esc, _) => app.exit_debts_mode(),
-        (KeyCode::Down, KeyModifiers::NONE) => app.next_debt(),
-        (KeyCode::Up, KeyModifiers::NONE) => app.previous_debt(),
+        (KeyCode::Down, KeyModifiers::NONE) => app.step_debt(true),
+        (KeyCode::Up, KeyModifiers::NONE) => app.step_debt(false),
         (KeyCode::Enter, KeyModifiers::NONE) => app.open_debt_detail(),
         (KeyCode::Char('a'), KeyModifiers::NONE) => app.start_adding_debt(),
         (KeyCode::Char('d'), KeyModifiers::NONE) => app.prepare_delete_debt(),
@@ -51,8 +51,8 @@ fn handle_detail(app: &mut App, key_event: KeyEvent) {
     }
     match (key_event.code, key_event.modifiers) {
         (KeyCode::Char('q'), _) | (KeyCode::Esc, _) => app.exit_debt_detail(),
-        (KeyCode::Down, KeyModifiers::NONE) => app.next_debt_detail_row(),
-        (KeyCode::Up, KeyModifiers::NONE) => app.previous_debt_detail_row(),
+        (KeyCode::Down, KeyModifiers::NONE) => app.step_debt_detail_row(true),
+        (KeyCode::Up, KeyModifiers::NONE) => app.step_debt_detail_row(false),
         (KeyCode::Tab, KeyModifiers::NONE) => app.toggle_debt_detail_focus(),
         _ => {}
     }

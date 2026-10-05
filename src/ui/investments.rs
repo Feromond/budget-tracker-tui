@@ -3,7 +3,8 @@ use crate::app::state::App;
 use crate::model::{InvestmentEntryKind, InvestmentRange};
 use crate::ui::form::{FieldOverride, render_field_form};
 use crate::ui::helpers::{
-    TRANSFER_COLOR, centered_rect, clamp_table_scroll, format_amount, format_signed_amount,
+    TRANSFER_COLOR, axis_amounts, centered_rect, clamp_table_scroll, format_amount,
+    format_signed_amount, right,
 };
 use chrono::NaiveDate;
 use ratatui::prelude::*;
@@ -341,21 +342,6 @@ fn axis_dates(start: NaiveDate, end: NaiveDate) -> Vec<Span<'static>> {
     vec![label(start), label(start + (end - start) / 2), label(end)]
 }
 
-fn axis_amounts(y_max: f64) -> Vec<Span<'static>> {
-    [0.0, y_max * 0.5, y_max]
-        .iter()
-        .map(|value| Span::raw(compact_amount(*value)))
-        .collect()
-}
-
-fn compact_amount(value: f64) -> String {
-    match value.abs() {
-        v if v >= 1_000_000.0 => format!("{:.1}M", value / 1_000_000.0),
-        v if v >= 1_000.0 => format!("{:.0}k", value / 1_000.0),
-        _ => format!("{:.0}", value),
-    }
-}
-
 fn render_accounts_table(f: &mut Frame, app: &mut App, area: Rect) {
     let today = app.today();
     let archived = app.show_archived_investments;
@@ -677,8 +663,4 @@ pub fn render_investment_entry_editor(f: &mut Frame, app: &App, area: Rect) {
         Some(" [Esc] Cancel, [Enter] Toggle/Save "),
         |_| None,
     );
-}
-
-fn right(text: String) -> Line<'static> {
-    Line::from(text).alignment(Alignment::Right)
 }

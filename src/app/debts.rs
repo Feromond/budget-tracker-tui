@@ -1,6 +1,7 @@
 use crate::app::fields::{AddEditField, DebtField, ReconcileField};
 use crate::app::investments::{STATUS_ACTIVE, STATUS_ARCHIVED};
 use crate::app::state::{App, AppMode};
+use crate::app::util::{step_selection, toggle_between};
 use crate::db::account_store::AccountStore;
 use crate::debt::{self, DebtActivity, DebtInput, DebtTerms, PayoffPlan, PayoffStrategy};
 use crate::model::{
@@ -70,28 +71,9 @@ impl App {
             .select((len > 0).then(|| index.min(len - 1)));
     }
 
-    pub(crate) fn next_debt(&mut self) {
+    pub(crate) fn step_debt(&mut self, forward: bool) {
         let len = self.visible_debt_ids().len();
-        if len == 0 {
-            return;
-        }
-        let index = match self.debt_table_state.selected() {
-            Some(current) if current + 1 < len => current + 1,
-            _ => 0,
-        };
-        self.debt_table_state.select(Some(index));
-    }
-
-    pub(crate) fn previous_debt(&mut self) {
-        let len = self.visible_debt_ids().len();
-        if len == 0 {
-            return;
-        }
-        let index = match self.debt_table_state.selected() {
-            Some(0) | None => len - 1,
-            Some(current) => current - 1,
-        };
-        self.debt_table_state.select(Some(index));
+        step_selection(&mut self.debt_table_state, len, forward, true);
     }
 
     pub(crate) fn toggle_archived_debts(&mut self) {
@@ -143,12 +125,19 @@ impl App {
         debt::simulate(&self.debt_plan_inputs(), strategy, self.debt_extra)
     }
 
-    pub(crate) fn debt_plan_payments(&self) -> Decimal {
-        self.debt_plan_inputs()
+    pub(crate) fn debt_monthly_total(&self) -> Decimal {
+        let rolls_over = self.debt_strategy.uses_extra();
+        let payments: Decimal = self
+            .debt_plan_inputs()
             .iter()
-            .filter(|input| self.debt_strategy.uses_extra() || input.owed > Decimal::ZERO)
+            .filter(|input| rolls_over || input.owed > Decimal::ZERO)
             .map(|input| input.payment)
-            .sum()
+            .sum();
+        if rolls_over {
+            payments + self.debt_extra
+        } else {
+            payments
+        }
     }
 
     pub(crate) fn standalone_debt_plan(&self, account: &Account) -> Option<PayoffPlan> {
@@ -215,21 +204,13 @@ impl App {
             .unwrap_or(0)
     }
 
-    pub(crate) fn next_debt_detail_row(&mut self) {
+    pub(crate) fn step_debt_detail_row(&mut self, forward: bool) {
         if self.debt_schedule_focused {
             let len = self.debt_schedule_len();
-            step_selection(&mut self.debt_schedule_table_state, len, true);
+            step_selection(&mut self.debt_schedule_table_state, len, forward, false);
         } else {
-            self.next_debt_history_row();
-        }
-    }
-
-    pub(crate) fn previous_debt_detail_row(&mut self) {
-        if self.debt_schedule_focused {
-            let len = self.debt_schedule_len();
-            step_selection(&mut self.debt_schedule_table_state, len, false);
-        } else {
-            self.previous_debt_history_row();
+            let len = self.debt_history().len();
+            step_selection(&mut self.debt_history_table_state, len, forward, true);
         }
     }
 
@@ -249,42 +230,12 @@ impl App {
             .iter()
             .filter(|tx| tx.date <= today && account.tracks(tx.date))
             .filter_map(|tx| {
-                let change = match tx.transaction_type {
-                    TransactionType::Expense if tx.account_id == account.id => tx.amount,
-                    TransactionType::Income if tx.account_id == account.id => -tx.amount,
-                    TransactionType::Transfer if tx.to_account_id == Some(account.id) => -tx.amount,
-                    TransactionType::Transfer if tx.account_id == account.id => tx.amount,
-                    _ => return None,
-                };
-                Some((tx, change))
+                let change = -tx.balance_change(account.id);
+                (!change.is_zero()).then_some((tx, change))
             })
             .collect();
         rows.sort_by_key(|(tx, _)| std::cmp::Reverse(tx.date));
         rows
-    }
-
-    fn next_debt_history_row(&mut self) {
-        let len = self.debt_history().len();
-        if len == 0 {
-            return;
-        }
-        let index = match self.debt_history_table_state.selected() {
-            Some(current) if current + 1 < len => current + 1,
-            _ => 0,
-        };
-        self.debt_history_table_state.select(Some(index));
-    }
-
-    fn previous_debt_history_row(&mut self) {
-        let len = self.debt_history().len();
-        if len == 0 {
-            return;
-        }
-        let index = match self.debt_history_table_state.selected() {
-            Some(0) | None => len - 1,
-            Some(current) => current - 1,
-        };
-        self.debt_history_table_state.select(Some(index));
     }
 
     pub(crate) fn start_adding_debt(&mut self) {
@@ -357,23 +308,19 @@ impl App {
     }
 
     pub(crate) fn toggle_debt_status(&mut self) {
-        let field = &mut self.debt_fields[DebtField::Status];
-        *field = if field == STATUS_ARCHIVED {
-            STATUS_ACTIVE
-        } else {
-            STATUS_ARCHIVED
-        }
-        .to_string();
+        toggle_between(
+            &mut self.debt_fields[DebtField::Status],
+            STATUS_ACTIVE,
+            STATUS_ARCHIVED,
+        );
     }
 
     pub(crate) fn toggle_debt_plan(&mut self) {
-        let field = &mut self.debt_fields[DebtField::Plan];
-        *field = if field == PLAN_TRACK_ONLY {
-            PLAN_INCLUDE
-        } else {
-            PLAN_TRACK_ONLY
-        }
-        .to_string();
+        toggle_between(
+            &mut self.debt_fields[DebtField::Plan],
+            PLAN_INCLUDE,
+            PLAN_TRACK_ONLY,
+        );
     }
 
     pub(crate) fn save_debt(&mut self) {
@@ -483,16 +430,7 @@ impl App {
                     "Months left must be a whole number from 1 to {}",
                     debt::MAX_MONTHS
                 ))?;
-            let account = Account {
-                id: self.editing_debt_id.unwrap_or(-1),
-                name: draft.name.clone(),
-                kind: draft.kind.clone(),
-                position: 0,
-                archived: draft.archived,
-                class: AccountClass::Credit,
-                opening_balance: draft.opening_balance,
-                tracked_from: draft.tracked_from,
-            };
+            let account = draft.preview(self.editing_debt_id.unwrap_or(-1));
             let owed_now = debt::owed_on(&account, &self.transactions, self.today());
             Some(
                 debt::payment_for_term(owed_now, apr, months)
@@ -525,7 +463,7 @@ impl App {
         let account = self.accounts.get(id)?;
         let (apr, payment) = self.debt_terms.get(&id)?.projectable()?;
         let owed = self.debt_owed(account);
-        let interest = (owed * apr / Decimal::from(1200)).round_dp(2);
+        let interest = debt::monthly_interest(owed, apr);
         (owed > Decimal::ZERO && payment <= interest).then(|| {
             format!(
                 "Heads up: {}/mo doesn't cover the {} monthly interest on '{}', so it never gets paid off.",
@@ -653,11 +591,7 @@ impl App {
     }
 
     fn has_category(&self, kind: TransactionType, category: &str, subcategory: &str) -> bool {
-        self.categories.iter().any(|info| {
-            info.transaction_type == kind
-                && info.category.eq_ignore_ascii_case(category)
-                && (subcategory.is_empty() || info.subcategory.eq_ignore_ascii_case(subcategory))
-        })
+        crate::validation::validate_category(&self.categories, kind, category, subcategory).is_ok()
     }
 
     fn focus_add_field(&mut self, field: AddEditField) {
@@ -813,18 +747,4 @@ impl App {
         self.clamp_debt_selection();
         self.set_status_message(message, Some(Duration::seconds(3)));
     }
-}
-
-fn step_selection(state: &mut ratatui::widgets::TableState, len: usize, forward: bool) {
-    if len == 0 {
-        state.select(None);
-        return;
-    }
-    let current = state.selected().unwrap_or(0).min(len - 1);
-    let next = if forward {
-        (current + 1).min(len - 1)
-    } else {
-        current.saturating_sub(1)
-    };
-    state.select(Some(next));
 }

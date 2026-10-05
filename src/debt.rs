@@ -116,7 +116,7 @@ fn ceiling() -> Decimal {
     Decimal::from(1_000_000_000_000_000_i64)
 }
 
-fn monthly_interest(owed: Decimal, apr: Decimal) -> Decimal {
+pub fn monthly_interest(owed: Decimal, apr: Decimal) -> Decimal {
     (owed.saturating_mul(apr) / Decimal::from(1200)).round_dp(2)
 }
 
@@ -233,16 +233,6 @@ fn closed_form_payment(owed: Decimal, apr: Decimal, months: u32) -> Option<Decim
     Decimal::from_f64(payment).map(|p| p.round_dp_with_strategy(2, RoundingStrategy::AwayFromZero))
 }
 
-fn balance_change(account_id: i64, tx: &Transaction) -> Decimal {
-    match tx.transaction_type {
-        TransactionType::Income if tx.account_id == account_id => tx.amount,
-        TransactionType::Expense if tx.account_id == account_id => -tx.amount,
-        TransactionType::Transfer if tx.to_account_id == Some(account_id) => tx.amount,
-        TransactionType::Transfer if tx.account_id == account_id => -tx.amount,
-        _ => Decimal::ZERO,
-    }
-}
-
 fn counted<'a>(
     account: &'a Account,
     transactions: &'a [Transaction],
@@ -251,16 +241,12 @@ fn counted<'a>(
     transactions
         .iter()
         .filter(move |tx| tx.date <= on && account.tracks(tx.date))
-        .map(move |tx| (tx, balance_change(account.id, tx)))
+        .map(move |tx| (tx, tx.balance_change(account.id)))
         .filter(|(_, change)| !change.is_zero())
 }
 
 pub fn signed_owed_on(account: &Account, transactions: &[Transaction], on: NaiveDate) -> Decimal {
-    let balance: Decimal = account.opening_balance
-        + counted(account, transactions, on)
-            .map(|(_, change)| change)
-            .sum::<Decimal>();
-    -balance
+    -account.balance_on(transactions, on)
 }
 
 pub fn owed_on(account: &Account, transactions: &[Transaction], on: NaiveDate) -> Decimal {
@@ -327,7 +313,7 @@ pub fn activity(account: &Account, transactions: &[Transaction], today: NaiveDat
     }
     let recorded = transactions
         .iter()
-        .filter(|tx| tx.date <= today && !balance_change(account.id, tx).is_zero());
+        .filter(|tx| tx.date <= today && !tx.balance_change(account.id).is_zero());
     for tx in recorded {
         let payment = tx.transaction_type == TransactionType::Transfer
             && tx.to_account_id == Some(account.id);

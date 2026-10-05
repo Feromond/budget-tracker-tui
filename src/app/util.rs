@@ -4,6 +4,7 @@ use crate::model::*;
 /// This module contains utilities that are specific to app state management
 /// and operations, as opposed to general validation or business logic.
 use chrono::Datelike;
+use ratatui::widgets::TableState;
 use rust_decimal::Decimal;
 use std::cmp::Ordering;
 
@@ -83,6 +84,29 @@ pub fn cycle<T: Copy + PartialEq>(options: &[T], current: T, forward: bool) -> T
         .unwrap_or(0);
     let step = if forward { 1 } else { options.len() - 1 };
     options[(index + step) % options.len()]
+}
+
+pub fn step_selection(state: &mut TableState, len: usize, forward: bool, wrap: bool) {
+    if len == 0 {
+        state.select(None);
+        return;
+    }
+    let last = len - 1;
+    let current = state.selected().map(|index| index.min(last));
+    let next = match (current, forward) {
+        (None, false) if wrap => last,
+        (None, _) => 0,
+        (Some(index), true) if index < last => index + 1,
+        (Some(_), true) if wrap => 0,
+        (Some(index), false) if index > 0 => index - 1,
+        (Some(_), false) if wrap => last,
+        (Some(index), _) => index,
+    };
+    state.select(Some(next));
+}
+
+pub fn toggle_between(field: &mut String, first: &str, second: &str) {
+    *field = if field == second { first } else { second }.to_string();
 }
 
 /// The `(category, subcategory)` a transaction is aggregated under in the category summary.

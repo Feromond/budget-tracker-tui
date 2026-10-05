@@ -150,6 +150,16 @@ pub struct Transaction {
 }
 
 impl Transaction {
+    pub fn balance_change(&self, account_id: i64) -> Decimal {
+        match self.transaction_type {
+            TransactionType::Income if self.account_id == account_id => self.amount,
+            TransactionType::Expense if self.account_id == account_id => -self.amount,
+            TransactionType::Transfer if self.to_account_id == Some(account_id) => self.amount,
+            TransactionType::Transfer if self.account_id == account_id => -self.amount,
+            _ => Decimal::ZERO,
+        }
+    }
+
     /// Build a database draft (the real-row fields stored in the `transactions` table) from a
     /// transaction. Drops `id`, the generated flag, and the in-memory `parent_id`.
     pub fn to_draft(&self) -> TransactionDraft {
@@ -501,6 +511,15 @@ impl Account {
     pub fn tracks(&self, date: NaiveDate) -> bool {
         self.tracked_from.is_none_or(|from| date > from)
     }
+
+    pub fn balance_on(&self, transactions: &[Transaction], on: NaiveDate) -> Decimal {
+        let flows: Decimal = transactions
+            .iter()
+            .filter(|tx| tx.date <= on && self.tracks(tx.date))
+            .map(|tx| tx.balance_change(self.id))
+            .sum();
+        self.opening_balance + flows
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -511,6 +530,21 @@ pub struct AccountDraft {
     pub class: AccountClass,
     pub opening_balance: Decimal,
     pub tracked_from: Option<NaiveDate>,
+}
+
+impl AccountDraft {
+    pub fn preview(&self, id: i64) -> Account {
+        Account {
+            id,
+            name: self.name.clone(),
+            kind: self.kind.clone(),
+            position: 0,
+            archived: self.archived,
+            class: self.class,
+            opening_balance: self.opening_balance,
+            tracked_from: self.tracked_from,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -590,21 +624,9 @@ impl Accounts {
     }
 
     pub fn balance(&self, id: i64, transactions: &[Transaction], on: NaiveDate) -> Decimal {
-        let Some(account) = self.get(id) else {
-            return Decimal::ZERO;
-        };
-        let flows: Decimal = transactions
-            .iter()
-            .filter(|tx| tx.date <= on && account.tracks(tx.date))
-            .map(|tx| match tx.transaction_type {
-                TransactionType::Income if tx.account_id == id => tx.amount,
-                TransactionType::Expense if tx.account_id == id => -tx.amount,
-                TransactionType::Transfer if tx.to_account_id == Some(id) => tx.amount,
-                TransactionType::Transfer if tx.account_id == id => -tx.amount,
-                _ => Decimal::ZERO,
-            })
-            .sum();
-        account.opening_balance + flows
+        self.get(id).map_or(Decimal::ZERO, |account| {
+            account.balance_on(transactions, on)
+        })
     }
 
     pub fn investments(&self) -> Vec<Account> {

@@ -353,8 +353,8 @@ Press `a` to add a debt or `e` to edit one:
 
 - **Owed / As Of**: your balance on a given date. Leave As Of blank to count all transactions.
 - **Interest Rate**: the yearly percentage, like `19.99`.
-- **Monthly Payment**: your minimum or loan payment. Leave it blank and set **Months Left**
-  to calculate it.
+- **Monthly Payment**: your minimum or loan payment. Or fill in **Months Left** to calculate
+  it.
 
 Choose *Track only* under **Payoff Plan** to exclude a debt from the plan and chart.
 This works for cards you pay in full or mortgages you track separately. Rate and payment are optional.

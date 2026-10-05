@@ -65,7 +65,7 @@ where
                                 // Allow Shift+Char in Adding, Editing and FuzzyFinding modes
                                 || ((app.mode == AppMode::Adding || app.mode == AppMode::Editing || app.mode == AppMode::FuzzyFinding || app.mode == AppMode::CategoryEditor || app.mode == AppMode::CategoryCatalogFilter || app.mode == AppMode::LedgerEditor || app.mode == AppMode::AccountEditor) && key.modifiers == KeyModifiers::SHIFT && matches!(key.code, KeyCode::Char(_)))
                                 // Allow Shift+Arrow in date-like navigation modes
-                                || ((app.mode == AppMode::Adding || app.mode == AppMode::Editing || app.mode == AppMode::AdvancedFiltering || app.mode == AppMode::RecurringSettings || app.mode == AppMode::Budget || app.mode == AppMode::InvestmentAccountEditor || app.mode == AppMode::InvestmentEntryEditor)
+                                || ((app.mode == AppMode::Adding || app.mode == AppMode::Editing || app.mode == AppMode::AdvancedFiltering || app.mode == AppMode::RecurringSettings || app.mode == AppMode::Budget || app.mode == AppMode::InvestmentAccountEditor || app.mode == AppMode::InvestmentEntryEditor || app.mode == AppMode::AccountEditor)
                                     && key.modifiers == KeyModifiers::SHIFT
                                     && matches!(key.code, KeyCode::Left | KeyCode::Right))
                                 || ((app.mode == AppMode::InvestmentAccountEditor || app.mode == AppMode::InvestmentEntryEditor || app.mode == AppMode::Investments) && key.modifiers == KeyModifiers::SHIFT && matches!(key.code, KeyCode::Char(_)))

@@ -258,7 +258,7 @@ form_fields! {
         Kind => FieldKind::Text, "Type", "(Optional - e.g. Chequing, Visa, Brokerage)";
         OpeningBalance => FieldKind::Amount, "Starting Balance", "(Optional)";
         BalanceDate => FieldKind::Date, "As Of (YYYY-MM-DD)",
-            "(Optional - statement date. Leave blank to count all transactions)";
+            "(Optional - statement date, ◀/▶ to step. Blank counts all transactions)";
         Status => FieldKind::Toggle, "Status", "(◀/▶ to toggle)";
     }
 }
@@ -279,13 +279,13 @@ form_fields! {
         Kind => FieldKind::Text, "Type", "(Optional - e.g. Visa, Car Loan, Mortgage)";
         Owed => FieldKind::Amount, "Owed", "(What you owed on the As Of date)";
         AsOf => FieldKind::Date, "As Of (YYYY-MM-DD)",
-            "(Optional - statement date. Leave blank to count all transactions)";
+            "(Optional - statement date, ◀/▶ to step. Blank counts all transactions)";
         Plan => FieldKind::Toggle, "Payoff Plan",
             "(◀/▶ - Track only for a card you pay in full, or a mortgage)";
         Apr => FieldKind::Amount, "Interest Rate (APR %)";
         Payment => FieldKind::Amount, "Monthly Payment", "(Your minimum or fixed loan payment)";
         MonthsLeft => FieldKind::Amount, "Months Left",
-            "(Optional - works out the payment if that's blank)";
+            "(Optional - works out the payment for you)";
         Status => FieldKind::Toggle, "Status", "(◀/▶ to toggle)";
     }
 }

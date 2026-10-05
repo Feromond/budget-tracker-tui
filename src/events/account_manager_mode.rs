@@ -1,4 +1,4 @@
-use crate::app::fields::{AccountField, FieldKey};
+use crate::app::fields::{AccountField, FieldKey, FieldKind};
 use crate::app::state::{App, AppMode};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -30,6 +30,7 @@ fn handle_account_list(app: &mut App, key_event: KeyEvent) {
 fn handle_account_editor(app: &mut App, key_event: KeyEvent) {
     let focused = app.account_fields.focused();
     let toggle = matches!(focused, AccountField::Class | AccountField::Status);
+    let date = focused.kind() == FieldKind::Date;
     match (key_event.code, key_event.modifiers) {
         (KeyCode::Esc, KeyModifiers::NONE) => app.cancel_account_editor(),
         (KeyCode::Tab, KeyModifiers::NONE) | (KeyCode::Down, KeyModifiers::NONE) => {
@@ -42,8 +43,16 @@ fn handle_account_editor(app: &mut App, key_event: KeyEvent) {
         (KeyCode::Enter, KeyModifiers::NONE) => app.save_account(),
         (KeyCode::Left, KeyModifiers::NONE) if toggle => app.cycle_account_toggle(false),
         (KeyCode::Right, KeyModifiers::NONE) if toggle => app.cycle_account_toggle(true),
+        (KeyCode::Left, KeyModifiers::NONE) if date => app.decrement_date(),
+        (KeyCode::Right, KeyModifiers::NONE) if date => app.increment_date(),
+        (KeyCode::Left, KeyModifiers::SHIFT) if date => app.decrement_month(),
+        (KeyCode::Right, KeyModifiers::SHIFT) if date => app.increment_month(),
         (KeyCode::Left, KeyModifiers::NONE) => app.move_cursor_left(),
         (KeyCode::Right, KeyModifiers::NONE) => app.move_cursor_right(),
+        (KeyCode::Char('+' | '='), KeyModifiers::NONE | KeyModifiers::SHIFT) if date => {
+            app.increment_date()
+        }
+        (KeyCode::Char('-'), KeyModifiers::NONE) if date => app.decrement_date(),
         (KeyCode::Char(c), KeyModifiers::NONE | KeyModifiers::SHIFT)
             if focused.kind().is_editable() =>
         {

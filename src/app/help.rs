@@ -887,7 +887,7 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 "Monthly Payment",
                 "Your minimum or loan payment",
                 "Fields",
-                Some("Leave blank and set Months Left to calculate a payment."),
+                Some("Or fill in Months Left to calculate it."),
             ),
             KeyBindingInfo::new("Enter", "Save debt", "Actions", None),
             KeyBindingInfo::new("Esc", "Cancel", "System", None),

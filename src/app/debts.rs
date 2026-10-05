@@ -258,7 +258,7 @@ impl App {
         self.debt_fields[DebtField::Name] = account.name;
         self.debt_fields[DebtField::Kind] = account.kind;
         let owed = -account.opening_balance;
-        if !owed.is_zero() {
+        if owed > Decimal::ZERO {
             self.debt_fields[DebtField::Owed] = format!("{:.2}", owed);
         }
         self.debt_fields[DebtField::AsOf] = account
@@ -378,9 +378,14 @@ impl App {
         if name.is_empty() {
             return Err("Debt name cannot be empty".to_string());
         }
-        let owed = match field(DebtField::Owed) {
-            "" => Decimal::ZERO,
-            value => crate::validation::validate_non_negative_amount_string(value)?,
+        let opening_balance = match field(DebtField::Owed) {
+            "" => self
+                .editing_debt_id
+                .and_then(|id| self.accounts.get(id))
+                .map_or(Decimal::ZERO, |account| {
+                    account.opening_balance.max(Decimal::ZERO)
+                }),
+            value => -crate::validation::validate_non_negative_amount_string(value)?,
         };
         let tracked_from = match field(DebtField::AsOf) {
             "" => None,
@@ -394,7 +399,7 @@ impl App {
             kind: field(DebtField::Kind).to_string(),
             archived: self.debt_fields[DebtField::Status] == STATUS_ARCHIVED,
             class: AccountClass::Credit,
-            opening_balance: -owed,
+            opening_balance,
             tracked_from,
         };
 
@@ -418,9 +423,7 @@ impl App {
                 Some(apr)
             }
         };
-        let payment = if !payment.is_empty() {
-            Some(crate::validation::validate_amount_string(payment)?)
-        } else if !months.is_empty() {
+        let payment = if !months.is_empty() {
             let apr = apr.ok_or("Set an interest rate to work out a payment from months left")?;
             let months: u32 = months
                 .parse()
@@ -436,6 +439,8 @@ impl App {
                 debt::payment_for_term(owed_now, apr, months)
                     .ok_or("Nothing is owed, so there's no payment to work out")?,
             )
+        } else if !payment.is_empty() {
+            Some(crate::validation::validate_amount_string(payment)?)
         } else {
             None
         };
@@ -579,11 +584,15 @@ impl App {
         fields[AddEditField::Account] = from;
         fields[AddEditField::ToAccount] = account.name.clone();
         self.focus_add_field(AddEditField::Amount);
-        if !account.tracks(self.today()) {
+        if let Some(as_of) = account
+            .tracked_from
+            .filter(|_| !account.tracks(self.today()))
+        {
             self.set_status_message(
                 format!(
-                    "'{}' has As Of set to today, so a payment dated today won't lower the balance. Date it later or move As Of back.",
-                    account.name
+                    "'{}' has As Of on {}, so payments dated on or before then won't lower the balance. Date it later or move As Of back.",
+                    account.name,
+                    as_of.format(DATE_FORMAT)
                 ),
                 None,
             );

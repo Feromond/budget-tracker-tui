@@ -1210,6 +1210,14 @@ impl App {
         let Some((content, _)) = self.active_date_input() else {
             return;
         };
+        if content.trim().is_empty() {
+            let today = chrono::Local::now().date_naive();
+            if let Some((content, cursor)) = self.active_date_input() {
+                *content = today.format(crate::model::DATE_FORMAT).to_string();
+                *cursor = content.len();
+            }
+            return;
+        }
         let current = content.clone();
 
         let Ok(current_date) = NaiveDate::parse_from_str(&current, crate::model::DATE_FORMAT)

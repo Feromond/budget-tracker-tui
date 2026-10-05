@@ -24,7 +24,7 @@ brew install budget-tracker
 ```
 
 <p align="center">
-<img width="2000" height="1228" alt="tour" src="https://github.com/user-attachments/assets/04c2c5f4-59cc-4e28-ab48-8d6390723aa0" />
+<img width="2000" alt="tour" src="https://github.com/user-attachments/assets/04c2c5f4-59cc-4e28-ab48-8d6390723aa0" />
   <br><i>Mini App Tour gif</i><br><br>
 </p>
 
@@ -32,34 +32,34 @@ brew install budget-tracker
 ## Screenshots
 
 <p align="center">
-  <img width="1000" height="614" alt="main-transaction-view" src="https://github.com/user-attachments/assets/c2e37d70-96b6-45ae-8dc4-5cbbad6d62ea" />
+  <img width="1000" alt="main-transaction-view" src="https://github.com/user-attachments/assets/c2e37d70-96b6-45ae-8dc4-5cbbad6d62ea" />
   <br><i>Main transaction view</i><br><br>
 
-  <img width="1000" height="614" alt="budget-view" src="https://github.com/user-attachments/assets/89de97b1-03aa-465b-9e90-815c2361c524" />
+  <img width="1000" alt="budget-view" src="https://github.com/user-attachments/assets/89de97b1-03aa-465b-9e90-815c2361c524" />
   <br><i>Budget view</i><br><br>
 </p>
 
 <details><summary>More screenshots</summary>
 <p align="center">
-  <img width="1000" height="614" alt="category-summary-view" src="https://github.com/user-attachments/assets/2dc5ef66-840b-4f24-8463-9cc899c07146" />
+  <img width="1000" alt="category-summary-view" src="https://github.com/user-attachments/assets/2dc5ef66-840b-4f24-8463-9cc899c07146" />
   <br><i>Category summary</i><br><br>
-  <img width="1000" height="614" alt="monthly-summary-view" src="https://github.com/user-attachments/assets/cf0c7fe1-2459-4393-a1fb-4c37b48a28e1" />
+  <img width="1000" alt="monthly-summary-view" src="https://github.com/user-attachments/assets/cf0c7fe1-2459-4393-a1fb-4c37b48a28e1" />
   <br><i>Monthly summary</i><br><br>
-  <img width="1000" height="614" alt="multi-month-summary" src="https://github.com/user-attachments/assets/19f47069-14c9-4bf7-aa43-98b86d3873cb" />
+  <img width="1000" alt="multi-month-summary" src="https://github.com/user-attachments/assets/19f47069-14c9-4bf7-aa43-98b86d3873cb" />
   <br><i>Multi-month line chart</i><br><br>
-  <img width="1000" height="614" alt="cumulative-with-budget-line" src="https://github.com/user-attachments/assets/46e7b5bd-b77d-4049-b3b3-8967268b0fab" />
+  <img width="1000" alt="cumulative-with-budget-line" src="https://github.com/user-attachments/assets/46e7b5bd-b77d-4049-b3b3-8967268b0fab" />
   <br><i>Cumulative chart with budget line</i><br><br>
-  <img width="1000" height="614" alt="cumulative-multi-summary" src="https://github.com/user-attachments/assets/8217da92-139a-4bfc-918f-a255b233d15e" />
+  <img width="1000" alt="cumulative-multi-summary" src="https://github.com/user-attachments/assets/8217da92-139a-4bfc-918f-a255b233d15e" />
   <br><i>Cumulative multi-month chart</i><br><br>
-  <img width="1000" height="614" alt="investment-account-view" src="https://github.com/user-attachments/assets/e0e20782-97e6-492a-8ab8-e7ceab191f60" />
+  <img width="1000" alt="investment-account-view" src="https://github.com/user-attachments/assets/e0e20782-97e6-492a-8ab8-e7ceab191f60" />
   <br><i>Investments</i><br><br>
-  <img width="1000" height="614" alt="settings-with-help-menu-open" src="https://github.com/user-attachments/assets/adbf0b3d-0146-4f7d-b367-19e42a495306" />
+  <img width="1000" alt="settings-with-help-menu-open" src="https://github.com/user-attachments/assets/adbf0b3d-0146-4f7d-b367-19e42a495306" />
   <br><i>Settings with help menu open</i><br><br>
-  <img width="1000" height="614" alt="fuzzy-search-categories" src="https://github.com/user-attachments/assets/ab985691-ca2f-4a07-bbc1-4c9ec3393b39" />
+  <img width="1000" alt="fuzzy-search-categories" src="https://github.com/user-attachments/assets/ab985691-ca2f-4a07-bbc1-4c9ec3393b39" />
   <br><i>Fuzzy search for categories</i><br><br>
-  <img width="1000" height="614" alt="category-catalog-with-budget-target" src="https://github.com/user-attachments/assets/d573a59f-0e53-4d1e-b67c-aa7baed59d77" />
+  <img width="1000" alt="category-catalog-with-budget-target" src="https://github.com/user-attachments/assets/d573a59f-0e53-4d1e-b67c-aa7baed59d77" />
   <br><i>Category catalog</i><br><br>
-  <img width="1000" height="614" alt="debt-view" src="https://github.com/user-attachments/assets/8c003d05-d1ba-4888-a3b9-790c125cb9ec" />
+  <img width="1000" alt="debt-view" src="https://github.com/user-attachments/assets/8c003d05-d1ba-4888-a3b9-790c125cb9ec" />
   <br><i>Debt View</i><br><br>
 </p>
 </details>

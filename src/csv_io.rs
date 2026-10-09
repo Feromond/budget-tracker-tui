@@ -43,24 +43,39 @@ pub(crate) struct CsvTransaction {
     pub to_account: String,
 }
 
+/// A value that starts with `=`, `+`, `-` or `@` is evaluated as a formula by Excel
+/// and Sheets, so a description like `=HYPERLINK(...)` becomes code that runs on
+/// whoever opens the export. Prefixing with an apostrophe keeps it as text.
+///
+/// We do this on the way out rather than at import so the stored value stays
+/// byte-faithful and `import_merge`'s duplicate matching keeps working.
+fn neutralize_csv_formula(value: &str) -> String {
+    let leading = value.trim_start_matches(['\t', '\r']);
+    match leading.chars().next() {
+        Some('=') | Some('+') | Some('-') | Some('@') => format!("'{value}"),
+        _ => value.to_string(),
+    }
+}
+
 impl Accounts {
     pub(crate) fn csv_row(&self, tx: &Transaction) -> CsvTransaction {
         CsvTransaction {
             date: tx.date,
-            description: tx.description.clone(),
+            description: neutralize_csv_formula(&tx.description),
             amount: tx.amount,
             transaction_type: tx.transaction_type,
-            category: tx.category.clone(),
-            subcategory: tx.subcategory.clone(),
+            category: neutralize_csv_formula(&tx.category),
+            subcategory: neutralize_csv_formula(&tx.subcategory),
             is_recurring: tx.is_recurring,
             recurrence_frequency: tx.recurrence_frequency,
             recurrence_end_date: tx.recurrence_end_date,
             is_generated_from_recurring: tx.is_generated_from_recurring,
-            account: self.name(tx.account_id).to_string(),
-            to_account: tx
-                .to_account_id
-                .map(|id| self.name(id).to_string())
-                .unwrap_or_default(),
+            account: neutralize_csv_formula(self.name(tx.account_id)),
+            to_account: neutralize_csv_formula(
+                &tx.to_account_id
+                    .map(|id| self.name(id).to_string())
+                    .unwrap_or_default(),
+            ),
         }
     }
 
@@ -377,5 +392,38 @@ fn parse_seed_categories() -> StdResult<Vec<(CategoryInfo, u32)>, Error> {
         Err(err)
     } else {
         Ok(categories)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::neutralize_csv_formula;
+
+    #[test]
+    fn formula_prefixes_are_neutralized() {
+        for payload in ["=cmd|'/c calc'!A1", "+1+1", "-2+3", "@SUM(1)"] {
+            assert_eq!(neutralize_csv_formula(payload), format!("'{payload}"));
+        }
+    }
+
+    #[test]
+    fn ordinary_values_are_untouched() {
+        for value in ["Milk", "", "  ", "café", "10.00", "a=b", "1-2"] {
+            assert_eq!(neutralize_csv_formula(value), value);
+        }
+    }
+
+    #[test]
+    fn a_tab_or_cr_before_the_metacharacter_is_still_caught() {
+        // Spreadsheets skip leading whitespace when deciding if a cell is a formula.
+        assert_eq!(neutralize_csv_formula("\t=HYPERLINK(\"x\")"), "'\t=HYPERLINK(\"x\")");
+        assert_eq!(neutralize_csv_formula("\r-2+3"), "'\r-2+3");
+    }
+
+    #[test]
+    fn a_value_that_is_only_metacharacters_is_prefixed_too() {
+        // Cheap to get wrong if the check is on the whole string rather than the first char.
+        assert_eq!(neutralize_csv_formula("==="), "'===");
+        assert_eq!(neutralize_csv_formula("--"), "'--");
     }
 }

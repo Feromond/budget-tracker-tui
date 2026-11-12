@@ -10,6 +10,7 @@ use super::{
     account_manager_mode, add_edit_mode, backup_mode, budget_mode, category_manager_mode,
     debts_mode, filter_mode, fuzzy_search_mode, help_mode, investments_mode, ledger_manager_mode,
     normal_mode, recurring_mode, selection_mode, settings_mode, summary_mode, transaction_io_mode,
+    update_mode,
 };
 
 pub fn run_app<B: Backend>(
@@ -31,10 +32,7 @@ where
             needs_redraw = true;
         }
 
-        // Check for update in background channel
-        if let Ok(Some(version)) = app.update_rx.try_recv() {
-            app.update_available_version = Some(version);
-            app.show_update_popup = true;
+        if update_mode::poll(app) {
             needs_redraw = true;
         }
 
@@ -117,28 +115,7 @@ fn normalize_key(mut key: KeyEvent) -> KeyEvent {
 // Main input handler, dispatching based on mode
 fn update(app: &mut App, key_event: KeyEvent) {
     if app.show_update_popup {
-        if key_event.kind == KeyEventKind::Press {
-            match key_event.code {
-                KeyCode::Enter | KeyCode::Char('o') | KeyCode::Char('O') => {
-                    let opened = crate::app::util::open_url(
-                        "https://github.com/Feromond/budget-tracker-tui/releases",
-                    );
-                    app.show_update_popup = false;
-                    if opened {
-                        // Close the app so the old and new versions are not run side by side.
-                        app.quit();
-                    } else {
-                        app.set_status_message(
-                            "Could not open browser. Visit github.com/Feromond/budget-tracker-tui/releases",
-                            Some(chrono::Duration::seconds(5)),
-                        );
-                    }
-                }
-                _ => {
-                    app.show_update_popup = false;
-                }
-            }
-        }
+        update_mode::handle_update_popup(app, key_event);
         return;
     }
 

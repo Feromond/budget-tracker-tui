@@ -21,6 +21,9 @@ rust_decimal = { version = "1.43.0", features = ["serde"] }
 ureq = { version = "3.4.2", features = ["json"] }
 semver = "1.0.28"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
+ed25519-dalek = "3.0.0"
+sha2 = "0.11.1"
+data-encoding = "2.11.1"
 
 [[bin]]
 name = "budget-tracker"
@@ -37,6 +40,22 @@ version = "1.7.0"
 copyright = "Copyright Ventra Software Inc. 2026. All rights reserved."
 category = "Finance"
 short_description = "A feature rich TUI budget tracker app"
+
+# Windows installer only; macOS and Linux ship plain binaries.
+[package.metadata.packager]
+product-name = "Budget Tracker TUI"
+identifier = "io.github.Feromond.budget-tracker-tui"
+publisher = "Ventra Software Inc."
+copyright = "Copyright Ventra Software Inc. 2026. All rights reserved."
+license-file = "LICENSE"
+out-dir = "target/packages"
+binaries = [{ path = "budget-tracker", main = true }]
+icons = ["budget_tracker_icon.ico"]
+
+[package.metadata.packager.nsis]
+template = "packaging/windows/installer.nsi"
+installer-icon = "budget_tracker_icon.ico"
+installer-mode = "currentUser"
 
 [profile.release]
 strip = true

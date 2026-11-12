@@ -78,7 +78,7 @@ brew install budget-tracker
 - CSV import/export (duplicates skipped on import)
 - Local SQLite storage with decimal arithmetic (no floating-point rounding errors)
 - Fully keyboard-driven, with a built-in help menu
-- Runs on Windows, macOS, and Linux; checks for new versions on startup
+- Runs on Windows, macOS, and Linux, and updates itself
 
 ## Installation
 
@@ -108,7 +108,7 @@ Grab the archive for your platform from the [Releases page](https://github.com/F
 sha256sum -c SHA256SUMS --ignore-missing
 ```
 
-Windows also has an installer on that page. I don't have a Windows developer licence, so it shows as an unknown publisher.
+The Windows installer (`*-setup.exe`) adds `budget-tracker` to your PATH. It's unsigned, so Windows shows an unknown publisher.
 
 ### From source
 

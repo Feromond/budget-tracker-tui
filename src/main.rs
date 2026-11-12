@@ -49,6 +49,8 @@ fn main() -> StdResult<(), Box<dyn std::error::Error>> {
         }
     }
 
+    app::updater::clean_up();
+
     enable_raw_mode()?;
     stdout()
         .execute(EnterAlternateScreen)?
@@ -69,7 +71,15 @@ fn main() -> StdResult<(), Box<dyn std::error::Error>> {
     }
 
     match run_result {
-        Ok(_) => Ok(()),
+        Ok(_) => match app.after_exit.take() {
+            Some(after) => {
+                // Release database and ledger locks before restarting.
+                drop(app);
+                drop(terminal);
+                app::updater::run_after_exit(after)
+            }
+            None => Ok(()),
+        },
         Err(run_err) => {
             eprintln!("Application Error: {}", run_err);
             Err(run_err)

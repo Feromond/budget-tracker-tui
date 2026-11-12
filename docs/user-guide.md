@@ -34,6 +34,7 @@ The companion to the [README](../README.md), with the longer explanations that d
 - [Settings](#settings)
 - [Backups](#backups)
 - [Data storage and backups](#data-storage-and-backups)
+- [Updating](#updating)
 - [CSV format](#csv-format)
 
 ## The main view
@@ -730,6 +731,16 @@ when sharing a database between devices.
 
 The separate CSV import, backup rename, and migration marker aren't covered by the schema-upgrade
 transaction. Keep a copy of your old CSV until you've checked the imported data.
+
+## Updating
+
+The app checks for updates on startup. When the popup appears, press `u` to update:
+
+- **Prebuilt binary:** downloads and verifies the update, then replaces the app. Press `r` to restart.
+- **Windows installer:** downloads and verifies the installer, then closes the app to install. The app reopens when it's done.
+- **Homebrew or cargo:** closes the app, runs `brew upgrade budget-tracker` or `cargo install budget-tracker-tui --locked`, then reopens after a successful update.
+
+If the app can't update itself, the popup links to the releases page. Updating leaves your data alone.
 
 ## CSV format
 

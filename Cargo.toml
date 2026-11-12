@@ -16,11 +16,11 @@ csv = "1.4.0"
 serde = { version = "1.0.229", features = ["derive"] }
 chrono = { version = "0.4.45", features = ["serde"] }
 dirs = "7.0.0"
-serde_json = "1.0.151"
+serde_json = "1.0.154"
 rust_decimal = { version = "1.43.0", features = ["serde"] }
-ureq = { version = "3.4.2", features = ["json"] }
+ureq = { version = "3.5.2", features = ["json"] }
 semver = "1.0.28"
-rusqlite = { version = "0.40.2", features = ["bundled"] }
+rusqlite = { version = "0.42.0", features = ["bundled"] }
 ed25519-dalek = "3.0.0"
 sha2 = "0.11.1"
 data-encoding = "2.11.1"
@@ -30,7 +30,7 @@ name = "budget-tracker"
 path = "src/main.rs"
 
 [build-dependencies]
-winresource = "0.1.31"
+winresource = "0.1.34"
 
 [package.metadata.bundle]
 name = "Budget Tracker"

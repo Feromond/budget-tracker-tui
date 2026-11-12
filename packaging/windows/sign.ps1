@@ -27,7 +27,8 @@ if ($env:AZURE_CLIENT_SECRET) {
     )
 }
 $metadataPath = Join-Path ([IO.Path]::GetTempPath()) "budget-tracker-signing-$PID.json"
-$metadata | ConvertTo-Json | Set-Content -Path $metadataPath -Encoding utf8
+# No byte order mark: Windows PowerShell's `-Encoding utf8` adds one, and the signing dlib rejects it.
+[IO.File]::WriteAllText($metadataPath, ($metadata | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
 
 try {
     # Timestamp so signatures outlast the three-day certificate.

@@ -17,6 +17,8 @@
 
 A terminal app for tracking your personal budget, built with [Rust](https://www.rust-lang.org) and [Ratatui](https://ratatui.rs).
 
+The app's page at [ventra.dev/budget-tracker](https://ventra.dev/budget-tracker) has a tour of every feature, recent changes, and downloads for your system.
+
 ```bash
 cargo install budget-tracker-tui
 # or
@@ -102,13 +104,13 @@ brew install budget-tracker
 
 ### Prebuilt binaries (no Rust required)
 
-Grab the archive for your platform from the [Releases page](https://github.com/Feromond/budget-tracker-tui/releases), unpack it, and move `budget-tracker` onto your PATH. Linux has glibc and static musl builds for both x86_64 and arm64; the musl ones run on any distribution. Every release ships a `SHA256SUMS` file if you want to check the download:
+Grab the archive for your platform from [ventra.dev/budget-tracker](https://ventra.dev/budget-tracker) or the [Releases page](https://github.com/Feromond/budget-tracker-tui/releases), unpack it, and move `budget-tracker` onto your PATH. Linux has glibc and static musl builds for both x86_64 and arm64; the musl ones run on any distribution. Every release ships a `SHA256SUMS` file if you want to check the download:
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
 ```
 
-The Windows installer (`*-setup.exe`) adds `budget-tracker` to your PATH. It's unsigned, so Windows shows an unknown publisher.
+The Windows installer (`*-setup.exe`) adds `budget-tracker` to your PATH. It's signed, though SmartScreen may still warn for a while as it builds a reputation.
 
 ### From source
 

@@ -178,6 +178,7 @@ jobs:
           Expand-Archive $zip $dir
           "ARTIFACT_SIGNING_DLIB=$dir\bin\x64\Azure.CodeSigning.Dlib.dll" >> $env:GITHUB_ENV
           "SIGNED_LOG=$env:RUNNER_TEMP\signed-files.txt" >> $env:GITHUB_ENV
+          "BUDGET_TRACKER_SIGN_SCRIPT=$env:GITHUB_WORKSPACE\packaging\windows\sign.ps1" >> $env:GITHUB_ENV
           # Use a bare name on PATH: spaces and relative paths break signing.
           "$env:GITHUB_WORKSPACE\packaging\windows" >> $env:GITHUB_PATH
           Add-Content Cargo.toml "`n[package.metadata.packager.windows]`nsign-command = `"budget-tracker-sign.cmd %1`""

@@ -16,5 +16,6 @@ mod selection_mode;
 mod settings_mode;
 mod summary_mode;
 mod transaction_io_mode;
+mod update_mode;
 
 pub use runner::run_app;

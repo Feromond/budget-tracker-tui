@@ -3,7 +3,7 @@ use crate::app::fields::{
     FilterCriterion, InvestmentAccountField, InvestmentEntryField, ReconcileField, RecurringField,
     SelectingField,
 };
-use crate::app::update_checker;
+use crate::app::updater;
 use crate::config::{AppSettings, load_settings, save_settings};
 use crate::csv_io::{load_seed_categories, load_transactions};
 use crate::db::account_store::{AccountStore, SqliteAccountStore};
@@ -21,7 +21,8 @@ use std::collections::{HashMap, HashSet};
 use std::fs::{copy, create_dir_all};
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, mpsc};
 use std::thread;
 
 pub(crate) enum DateUnit {
@@ -271,9 +272,20 @@ pub struct App {
     pub(crate) help_table_state: TableState,
     pub(crate) hide_help_bar: bool,
     // Update Check
-    pub(crate) update_available_version: Option<String>,
+    pub(crate) update: Option<updater::Update>,
+    pub(crate) update_phase: UpdatePhase,
     pub(crate) show_update_popup: bool,
-    pub(crate) update_rx: mpsc::Receiver<Option<String>>,
+    pub(crate) update_rx: mpsc::Receiver<Option<updater::Update>>,
+    pub(crate) update_progress_rx: Option<mpsc::Receiver<updater::Progress>>,
+    pub(crate) update_cancel: Arc<AtomicBool>,
+    pub(crate) after_exit: Option<updater::AfterExit>,
+}
+
+pub(crate) enum UpdatePhase {
+    Offer,
+    Downloading { received: u64, total: u64 },
+    Installed(PathBuf),
+    Failed(String),
 }
 
 impl App {
@@ -281,8 +293,7 @@ impl App {
         // --- Start Update Check ---
         let (tx, rx) = mpsc::channel();
         thread::spawn(move || {
-            let result = update_checker::check_for_updates();
-            let _ = tx.send(result);
+            let _ = tx.send(updater::check());
         });
 
         // --- Load Settings ---
@@ -557,9 +568,13 @@ impl App {
             previous_mode: None,
             help_table_state: TableState::default(),
             hide_help_bar: loaded_settings.hide_help_bar.unwrap_or(false),
-            update_available_version: None,
+            update: None,
+            update_phase: UpdatePhase::Offer,
             show_update_popup: false,
             update_rx: rx,
+            update_progress_rx: None,
+            update_cancel: Arc::new(AtomicBool::new(false)),
+            after_exit: None,
         };
         if let Some(version) = Self::newer_schema_version(&app.database_path) {
             app.status_message = Some(format!(

@@ -2,6 +2,11 @@ use std::{env, path::PathBuf};
 use winresource::WindowsResource;
 
 fn main() {
+    println!(
+        "cargo:rustc-env=BUILD_TARGET={}",
+        env::var("TARGET").unwrap_or_default()
+    );
+
     // Only set the icon if building for Windows
     if env::var_os("CARGO_CFG_WINDOWS").is_some() {
         let manifest_dir = match env::var("CARGO_MANIFEST_DIR") {

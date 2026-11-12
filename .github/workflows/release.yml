@@ -55,6 +55,30 @@ jobs:
           fi
           echo "version=$tag_version" >> "$GITHUB_OUTPUT"
 
+      - name: Check the update signing key matches the app
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          [ -n "$UPDATE_SIGNING_KEY" ] || { echo "::error::UPDATE_SIGNING_KEY isn't set."; exit 1; }
+          public=$(printf '%s\n' "$UPDATE_SIGNING_KEY" | openssl pkey -pubout -outform DER | tail -c 32 | od -An -tx1 | tr -d ' \n')
+          grep -q "\"$public\"" src/app/updater.rs \
+            || { echo "::error::UPDATE_SIGNING_KEY doesn't match PUBLIC_KEY_HEX in src/app/updater.rs."; exit 1; }
+
+      - name: Check Windows signing settings
+        if: vars.ARTIFACT_SIGNING_ACCOUNT != ''
+        env:
+          ARTIFACT_SIGNING_ENDPOINT: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          ARTIFACT_SIGNING_PROFILE: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          for name in ARTIFACT_SIGNING_ENDPOINT ARTIFACT_SIGNING_PROFILE \
+            AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET; do
+            [ -n "${!name}" ] || { echo "::error::$name isn't set (Windows signing is on)."; exit 1; }
+          done
+
       - name: Check formatting
         run: cargo fmt --check
 
@@ -115,6 +139,57 @@ jobs:
       - name: Build release binaries
         run: cargo build --release --locked --target ${{ matrix.target }}
 
+      - name: Install cargo-packager
+        if: runner.os == 'Windows'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-packager@0.11.8
+
+      # Local builds stay unsigned.
+      - name: Set up Windows signing
+        if: runner.os == 'Windows' && vars.ARTIFACT_SIGNING_ACCOUNT != ''
+        shell: pwsh
+        env:
+          CLIENT_VERSION: 1.0.128
+          CLIENT_SHA256: 74bd7d27e6ce1051409c38d9b46bc8df0400ecd643d51ffbf2ac00869061e40b
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = "$env:RUNNER_TEMP\artifact-signing.zip"
+          $dir = "$env:RUNNER_TEMP\artifact-signing"
+          Invoke-WebRequest -OutFile $zip `
+            "https://api.nuget.org/v3-flatcontainer/microsoft.artifactsigning.client/$env:CLIENT_VERSION/microsoft.artifactsigning.client.$env:CLIENT_VERSION.nupkg"
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $env:CLIENT_SHA256) {
+            throw "Microsoft.ArtifactSigning.Client $env:CLIENT_VERSION doesn't match its pinned hash."
+          }
+          Expand-Archive $zip $dir
+          "ARTIFACT_SIGNING_DLIB=$dir\bin\x64\Azure.CodeSigning.Dlib.dll" >> $env:GITHUB_ENV
+          "SIGNED_LOG=$env:RUNNER_TEMP\signed-files.txt" >> $env:GITHUB_ENV
+          # Use a bare name on PATH: spaces and relative paths break signing.
+          "$env:GITHUB_WORKSPACE\packaging\windows" >> $env:GITHUB_PATH
+          Add-Content Cargo.toml "`n[package.metadata.packager.windows]`nsign-command = `"budget-tracker-sign.cmd %1`""
+
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        env:
+          ARTIFACT_SIGNING_ACCOUNT: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
+          ARTIFACT_SIGNING_ENDPOINT: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          ARTIFACT_SIGNING_PROFILE: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: cargo packager --release --target ${{ matrix.target }} --formats nsis
+
+      # makensis ignores a failed uninstaller signature, so count all three.
+      - name: Check Windows signatures
+        if: runner.os == 'Windows' && vars.ARTIFACT_SIGNING_ACCOUNT != ''
+        shell: pwsh
+        run: |
+          $signed = @(Get-Content $env:SIGNED_LOG | Where-Object { $_ })
+          $signed
+          if ($signed.Count -lt 3) {
+            throw "Only $($signed.Count) of 3 files were signed (app, uninstaller, installer)."
+          }
+
       - name: Package archive
         shell: bash
         env:
@@ -131,6 +206,7 @@ jobs:
           if [ "$RUNNER_OS" = "Windows" ]; then
             cp "$out/$BIN_NAME.exe" "dist/$pkg/"
             (cd dist && 7z a -tzip "$pkg.zip" "$pkg" > /dev/null)
+            cp target/packages/*-setup.exe "dist/$pkg-setup.exe"
           else
             cp "$out/$BIN_NAME" "dist/$pkg/"
             (cd dist && tar czf "$pkg.tar.gz" "$pkg")
@@ -160,6 +236,33 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      - name: Sign the update manifest
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          files='{}'
+          for f in dist/"$BIN_NAME-$VERSION"-*; do
+            name=$(basename "$f")
+            key=${name#"$BIN_NAME-$VERSION-"}
+            key=${key%.tar.gz}; key=${key%.zip}; key=${key%.exe}
+            files=$(jq -c --arg k "$key" --arg url "$base/$name" \
+              --argjson size "$(wc -c < "$f" | tr -d ' ')" \
+              --arg sha "$(sha256sum "$f" | cut -d' ' -f1)" \
+              '. + {($k): {url: $url, size: $size, sha256: $sha}}' <<< "$files")
+          done
+          jq -n --arg v "$VERSION" --argjson files "$files" '{version: $v, files: $files}' > dist/latest.json
+          key_file="$RUNNER_TEMP/update-key.pem"
+          (umask 077 && printf '%s\n' "$UPDATE_SIGNING_KEY" > "$key_file")
+          { printf 'budget-tracker/update/v1\0'; cat dist/latest.json; } > "$RUNNER_TEMP/signed.bin"
+          openssl pkeyutl -sign -inkey "$key_file" -rawin -in "$RUNNER_TEMP/signed.bin" \
+            | base64 | tr -d '\n' > dist/latest.json.sig
+          rm -f "$key_file" "$RUNNER_TEMP/signed.bin"
+          cat dist/latest.json
 
       # Package managers pin these hashes in their manifests, so every asset
       # needs one and none of them may change after the release is published.
@@ -196,7 +299,7 @@ jobs:
 
           ## Install
 
-          With Rust installed (skip this if you use the Windows installer below):
+          With Rust installed:
 
           ```bash
           cargo install budget-tracker-tui
@@ -214,6 +317,9 @@ jobs:
           | `*-aarch64-unknown-linux-musl.tar.gz` | Linux arm64 (static, any distro) |
           | `*-aarch64-apple-darwin.tar.gz` | macOS Apple Silicon |
           | `*-x86_64-pc-windows-msvc.zip` | Windows x86_64 |
+          | `*-x86_64-pc-windows-msvc-setup.exe` | Windows installer (adds `budget-tracker` to PATH) |
+
+          `latest.json` and `latest.json.sig` are for the in-app updater.
 
           Verify a download with `sha256sum -c SHA256SUMS --ignore-missing`.
 
@@ -221,7 +327,7 @@ jobs:
 
           ### TLDR:
 
-          <!-- Add the summary, screenshot, and installer before publishing, then delete this line. -->
+          <!-- Add a summary and screenshot, then remove this note. -->
           EOF
           } > release_notes.md
 

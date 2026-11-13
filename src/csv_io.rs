@@ -19,12 +19,13 @@ pub(crate) struct CsvTransaction {
     #[serde(deserialize_with = "deserialize_flexible_date")]
     #[serde(serialize_with = "serialize_date")]
     pub date: NaiveDate,
+    #[serde(with = "escaped")]
     pub description: String,
     pub amount: Decimal,
     pub transaction_type: TransactionType,
-    #[serde(default = "default_category")]
+    #[serde(default = "default_category", with = "escaped")]
     pub category: String,
-    #[serde(default)]
+    #[serde(default, with = "escaped")]
     pub subcategory: String,
     #[serde(default)]
     pub is_recurring: bool,
@@ -37,10 +38,45 @@ pub(crate) struct CsvTransaction {
     #[serde(default)]
     pub is_generated_from_recurring: bool,
     /// Blank means the ledger's default account.
-    #[serde(default)]
+    #[serde(default, with = "escaped")]
     pub account: String,
-    #[serde(default)]
+    #[serde(default, with = "escaped")]
     pub to_account: String,
+}
+
+// Prefix formula-like text with `'` for spreadsheets.
+// Escape leading apostrophes too so imports preserve the original text.
+mod escaped {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    fn needs_escape(value: &str) -> bool {
+        value.starts_with(['=', '+', '-', '@', '\t', '\r', '\''])
+    }
+
+    fn escape(value: &str) -> String {
+        if needs_escape(value) {
+            format!("'{value}")
+        } else {
+            value.to_string()
+        }
+    }
+
+    fn unescape(value: &str) -> String {
+        match value.strip_prefix('\'') {
+            Some(rest) if needs_escape(rest) => rest.to_string(),
+            _ => value.to_string(),
+        }
+    }
+
+    pub(super) fn serialize<S: Serializer>(value: &str, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&escape(value))
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<String, D::Error> {
+        String::deserialize(deserializer).map(|value| unescape(&value))
+    }
 }
 
 impl Accounts {

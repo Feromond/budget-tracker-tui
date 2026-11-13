@@ -765,6 +765,8 @@ one-time transactions. You can omit `account` to use the default account, and `t
 or expenses.
 If boolean columns are present, use `true` or `false`, not blank cells.
 
+CSV exports add `'` before text starting with `=`, `+`, `-`, `@`, `'`, a tab, or a carriage return to prevent spreadsheet formulas. Import removes the added `'`.
+
 For recurring transactions, set `is_recurring` to `true` and use one of these exact frequency values:
 
 ```text

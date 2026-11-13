@@ -6,6 +6,8 @@ use crate::model::{
 use chrono::NaiveDate;
 use rusqlite::{Connection, Error as SqlError, Row, params, types::Type};
 use rust_decimal::Decimal;
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::io::{Error, ErrorKind, Result};
 use std::str::FromStr;
 
@@ -24,8 +26,7 @@ pub trait TransactionStore {
     fn insert(&self, draft: &TransactionDraft) -> Result<i64>;
     fn update(&self, id: i64, draft: &TransactionDraft) -> Result<()>;
     fn delete(&self, id: i64) -> Result<()>;
-    /// Insert every row that is not already present (matched on its natural key). Runs in a
-    /// single transaction; duplicates within the batch are skipped too.
+    /// Merge in one transaction. Each stored row skips one matching import row; extra repeats stay.
     fn import_merge(&self, rows: &[Transaction]) -> Result<ImportSummary>;
     /// Convert expenses to transfers out and income to transfers in, using `other_account_id`.
     /// Remove matching manual investment entries in the same transaction.
@@ -42,6 +43,33 @@ pub trait TransactionStore {
 pub struct SqliteTransactionStore {
     database: SqliteDatabase,
     ledger_id: i64,
+}
+
+#[derive(PartialEq, Eq, Hash)]
+struct NaturalKey {
+    date: NaiveDate,
+    description: String,
+    amount: String,
+    transaction_type: &'static str,
+    category: String,
+    subcategory: String,
+    account_id: i64,
+    to_account_id: Option<i64>,
+}
+
+impl NaturalKey {
+    fn of(tx: &Transaction) -> Self {
+        Self {
+            date: tx.date,
+            description: tx.description.clone(),
+            amount: tx.amount.normalize().to_string(),
+            transaction_type: tx.transaction_type.as_str(),
+            category: tx.category.clone(),
+            subcategory: tx.subcategory.clone(),
+            account_id: tx.account_id,
+            to_account_id: tx.to_account_id,
+        }
+    }
 }
 
 impl SqliteTransactionStore {
@@ -157,12 +185,10 @@ impl SqliteTransactionStore {
         Ok(conn.last_insert_rowid())
     }
 
-    /// Does a row with the same natural key already exist? Amounts are compared in their
-    /// canonical `Decimal` string form so "10" and "10.00" are treated as equal.
-    fn natural_key_exists(conn: &Connection, ledger_id: i64, tx: &Transaction) -> Result<bool> {
+    fn natural_key_count(conn: &Connection, ledger_id: i64, tx: &Transaction) -> Result<usize> {
         conn.query_row(
             "
-            SELECT 1 FROM transactions
+            SELECT COUNT(*) FROM transactions
             WHERE ledger_id = ?1
               AND date = ?2
               AND description = ?3
@@ -172,7 +198,6 @@ impl SqliteTransactionStore {
               AND subcategory = ?7
               AND account_id = ?8
               AND to_account_id IS ?9
-            LIMIT 1
             ",
             params![
                 ledger_id,
@@ -185,16 +210,10 @@ impl SqliteTransactionStore {
                 tx.account_id,
                 tx.to_account_id,
             ],
-            |_| Ok(()),
+            |row| row.get::<_, i64>(0),
         )
-        .map(|_| true)
-        .or_else(|err| match err {
-            SqlError::QueryReturnedNoRows => Ok(false),
-            other => Err(Error::other(format!(
-                "Failed to check for existing transaction: {}",
-                other
-            ))),
-        })
+        .map(|count| count as usize)
+        .map_err(|err| Error::other(format!("Failed to check for existing transaction: {}", err)))
     }
 }
 
@@ -306,9 +325,17 @@ impl TransactionStore for SqliteTransactionStore {
         let mut ordered: Vec<&Transaction> = rows.iter().collect();
         ordered.sort_by_key(|row| row.date);
 
+        let mut unmatched: HashMap<NaturalKey, usize> = HashMap::new();
         let mut summary = ImportSummary::default();
         for row in ordered {
-            if Self::natural_key_exists(&tx, self.ledger_id, row)? {
+            let remaining = match unmatched.entry(NaturalKey::of(row)) {
+                Entry::Occupied(entry) => entry.into_mut(),
+                Entry::Vacant(entry) => {
+                    entry.insert(Self::natural_key_count(&tx, self.ledger_id, row)?)
+                }
+            };
+            if *remaining > 0 {
+                *remaining -= 1;
                 summary.skipped += 1;
             } else {
                 Self::insert_with_conn(&tx, self.ledger_id, &row.to_draft())?;
@@ -575,6 +602,16 @@ mod tests {
         let safety = safety.expect("restoring over a real database keeps a safety copy");
         backup::restore(&temp.path, &safety, "device-a").unwrap();
         assert_eq!(store.list().unwrap().len(), 2);
+
+        std::fs::write(&temp.path, b"not a database").unwrap();
+        let safety = backup::restore(&temp.path, &snapshot.path, "device-a").unwrap();
+        assert_eq!(std::fs::read(safety.unwrap()).unwrap(), b"not a database");
+        assert_eq!(store.list().unwrap().len(), 1);
+        assert!(
+            !backup::backups_dir(&temp.path)
+                .join("restore.db.partial")
+                .exists()
+        );
     }
 
     #[test]
@@ -1924,10 +1961,18 @@ mod tests {
         let dup = draft("2026-01-05", "Coffee", "4.5", "Food").into_transaction();
         let fresh = draft("2026-02-01", "Books", "20", "Education").into_transaction();
 
-        let summary = store.import_merge(&[dup, fresh]).unwrap();
+        let summary = store.import_merge(&[dup.clone(), fresh]).unwrap();
         assert_eq!(summary.added, 1);
         assert_eq!(summary.skipped, 1);
         assert_eq!(store.list().unwrap().len(), 2);
+
+        let twice = draft("2026-03-01", "Coffee", "4.50", "Food").into_transaction();
+        let batch = [twice.clone(), twice, dup];
+        let summary = store.import_merge(&batch).unwrap();
+        assert_eq!((summary.added, summary.skipped), (2, 1));
+        let summary = store.import_merge(&batch).unwrap();
+        assert_eq!((summary.added, summary.skipped), (0, 3));
+        assert_eq!(store.list().unwrap().len(), 4);
 
         // Dedupe is per-ledger, so the same rows import cleanly into a different ledger.
         let forecast = temp.create_ledger("Forecast");
@@ -1941,6 +1986,37 @@ mod tests {
         let summary = other.import_merge(&[dup, fresh]).unwrap();
         assert_eq!(summary.added, 2);
         assert_eq!(summary.skipped, 0);
+    }
+
+    #[test]
+    fn amounts_rates_percents_and_paths_stay_in_bounds() {
+        use crate::validation::{
+            resolve_user_path, strip_path_quotes, validate_amount_string,
+            validate_non_negative_amount_string,
+        };
+        let dec = |value: &str| Decimal::from_str(value).unwrap();
+
+        assert_eq!(validate_amount_string(" 12.50 ").unwrap(), dec("12.5"));
+        assert!(validate_amount_string("12.505").is_ok());
+        assert!(validate_amount_string("0").is_err());
+        assert!(validate_amount_string("1000000000000").is_err());
+        assert!(validate_amount_string("50000000000000000000000000000").is_err());
+        assert!(validate_non_negative_amount_string("0").is_ok());
+
+        assert_eq!(
+            crate::model::percent_of(dec("1"), dec("4")),
+            Some(dec("25"))
+        );
+        assert_eq!(crate::model::percent_of(dec("1000"), dec("1e-25")), None);
+
+        let home = dirs::home_dir().unwrap();
+        assert_eq!(
+            resolve_user_path(" '~/budget.db'\n").unwrap(),
+            home.join("budget.db")
+        );
+        assert!(resolve_user_path("budget.db").unwrap().is_absolute());
+        assert!(resolve_user_path("  ").is_none());
+        assert_eq!(strip_path_quotes("\"/tmp/Bob's\" "), "/tmp/Bob's");
     }
 
     #[test]
@@ -2037,6 +2113,9 @@ mod tests {
         let mut headless = old[0].clone();
         headless.transaction_type = TransactionType::Transfer;
         assert!(accounts.link_csv(&headless).is_err());
+        let mut negative = old[0].clone();
+        negative.amount = -negative.amount;
+        assert!(accounts.link_csv(&negative).is_err());
 
         let _ = std::fs::remove_file(&csv_path);
     }

@@ -145,7 +145,8 @@ impl App {
             && let Some(field) = self.selecting_field.and_then(SelectingField::add_edit)
             && let Some(selected_value) = self.current_selection_list.get(selected_index)
         {
-            let value_to_set = if field == AddEditField::Subcategory && selected_value == "(None)" {
+            // Use the index: a real subcategory can also be named "(None)".
+            let value_to_set = if field == AddEditField::Subcategory && selected_index == 0 {
                 ""
             } else {
                 selected_value.as_str()

@@ -203,7 +203,15 @@ pub fn create(database_path: &Path, instance: &str, kind: BackupKind) -> Result<
     // VACUUM INTO can leave partial output; keep it out of the backup list.
     let partial = with_partial_suffix(&path);
     let conn = SqliteDatabase::new(database_path).open_connection("backup")?;
-    let written = conn.execute_batch(&format!("VACUUM INTO '{}';", sql_literal(&partial)));
+    let written = match conn.execute_batch(&format!("VACUUM INTO '{}';", sql_literal(&partial))) {
+        // Keep a raw copy if corruption prevents VACUUM.
+        Err(err) if kind == BackupKind::PreRestore && is_damaged(&err) => {
+            drop(conn);
+            let _ = fs::remove_file(&partial);
+            fs::copy(database_path, &partial).map(|_| ())
+        }
+        other => other.map_err(Error::other),
+    };
     if let Err(err) = written {
         let _ = fs::remove_file(&partial);
         return Err(Error::other(format!(
@@ -230,6 +238,13 @@ pub fn create(database_path: &Path, instance: &str, kind: BackupKind) -> Result<
         kind,
         path,
     })
+}
+
+fn is_damaged(err: &rusqlite::Error) -> bool {
+    matches!(
+        err.sqlite_error_code(),
+        Some(rusqlite::ErrorCode::DatabaseCorrupt | rusqlite::ErrorCode::NotADatabase)
+    )
 }
 
 fn with_partial_suffix(path: &Path) -> PathBuf {
@@ -346,16 +361,29 @@ pub fn restore(
         None
     };
 
-    let database = SqliteDatabase::new(database_path);
-    database.ensure_parent_dir()?;
-    fs::copy(backup_path, database_path).map_err(|err| {
+    let failed = |err: Error| {
+        let saved = safety
+            .as_ref()
+            .map(|path| format!(" Your previous data is saved in '{}'.", path.display()))
+            .unwrap_or_default();
         Error::other(format!(
-            "Failed to restore '{}' over '{}': {}",
+            "Failed to restore '{}' over '{}': {}.{}",
             backup_path.display(),
             database_path.display(),
-            err
+            err,
+            saved
         ))
-    })?;
+    };
+
+    // Stage on the same disk for rename; backup pruning clears leftovers.
+    let dir = backups_dir(database_path);
+    fs::create_dir_all(&dir).map_err(failed)?;
+    let staged = dir.join(format!("restore.{}{}", EXTENSION, PARTIAL_SUFFIX));
+    let swapped = fs::copy(backup_path, &staged).and_then(|_| fs::rename(&staged, database_path));
+    if let Err(err) = swapped {
+        let _ = fs::remove_file(&staged);
+        return Err(failed(err));
+    }
 
     // Don't let old journals affect the restored database.
     for suffix in ["-wal", "-shm", "-journal"] {
@@ -363,6 +391,5 @@ pub fn restore(
         sidecar.push(suffix);
         let _ = fs::remove_file(PathBuf::from(sidecar));
     }
-
     Ok(safety)
 }

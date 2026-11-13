@@ -66,7 +66,7 @@ These are the keys for the main view. Some do different things in other views.
 2. Fill in the fields, moving between them with `Tab` or `↑`/`↓`.
 3. Move to Date, Description, or Amount and press `Enter` to save. `Esc` cancels.
 
-New transactions start with today's date and type Expense. Enter a description and a positive amount; the type determines whether it's income, spending, or a [transfer](#transfers). Changing the type clears the category and subcategory.
+New transactions start as expenses dated today. Enter a description and a positive amount. The type sets whether it's income, spending, or a [transfer](#transfers). Changing it clears the category and subcategory.
 
 `Ctrl+C` from the main view saves a copy immediately, dated today and without recurrence. Select the copy and press `e` if you need to change it.
 
@@ -587,9 +587,9 @@ The copy has its own transactions and budgets, but still shares the category cat
 2. Open Settings, select *Import Transactions (CSV)*, and press `Enter`.
 3. Type or paste the full path to the CSV file, including its filename, and press `Enter` to import. See [CSV format](#csv-format) for columns and accepted values.
 
-The path prompt is a text field, not a file browser. `Ctrl+U` clears it, `Ctrl+D` restores the default path, and `Esc` returns to Settings. Use a full path rather than `~` or environment variables, which aren't expanded.
+Type or paste the path. `Ctrl+U` clears it, `Ctrl+D` restores the default, and `Esc` returns to Settings. Use `~` for your home folder. Relative paths start from the folder where you launched the app. Environment variables aren't expanded.
 
-Import adds rows unless their date, description, amount, type, category, subcategory, and accounts match a transaction already present. Matching rows are skipped, not updated, even if recurrence settings differ. This also skips identical rows within the file. Amounts such as `10` and `10.00` count as equal.
+Import matches rows by date, description, amount, type, category, subcategory, and accounts. Each existing transaction skips one matching CSV row; extra copies are added. For example, two identical coffee purchases are both kept if neither is in the ledger. Matches aren't updated, even if recurrence differs. Amounts like `10` and `10.00` count as equal.
 
 Generated recurring rows are skipped after parsing, since the app generates them from the original transactions. A parsing error or an invalid account on a row being imported stops the import before any rows are added. A successful import clears the text and advanced filters and returns to the main view. The account you're viewing stays selected.
 
@@ -695,9 +695,9 @@ Transactions, accounts, categories, and investment entries are stored together i
 - **macOS:** `~/Library/Application Support/BudgetTracker/budget.db`
 - **Windows:** `%APPDATA%\BudgetTracker\budget.db`
 
-Check *Database Path* in Settings for the actual location. Older configurations may put the database beside a previously configured CSV file instead. The setting takes a full filename, not just a folder, and the file doesn't have to be named `budget.db`.
+Check *Database Path* in Settings for the location. Older setups may store it beside a previously configured CSV file. Include a filename; any name works. Use `~` for your home folder. Relative paths are saved as full paths from the folder where you launched the app.
 
-When you save a new path, the app copies the current database there if the destination doesn't exist. If it already exists, the app switches to that database without merging them. The original file stays in place.
+Saving a new path copies the database there if the file doesn't exist. Otherwise, the app switches to that database without merging. If it needs upgrading and backups are enabled, the app backs it up first. The original stays in place.
 
 > **Using a cloud-synced folder:** This can carry the database between devices, but the app doesn't handle sync conflicts or simultaneous use. Close the app before switching devices, wait for syncing to finish, and keep separate backups. The app's [snapshots](#backups) sync with the database too.
 
@@ -756,6 +756,7 @@ Use these header names without spaces around the commas. Date, description, amou
 
 - **Date:** accepts `YYYY-MM-DD`, `YYYY/MM/DD`, `DD/MM/YYYY`, or `DD-MM-YYYY`
 - **Transaction type:** `Income`, `Expense`, or `Transfer`, case-insensitive; `i`/`e`/`t` also work
+- **Amount:** positive and under 1 trillion. For spending, use type `Expense` with a positive amount.
 - **Category/Subcategory:** use names from the category catalog where possible. Import doesn't add catalog entries or enforce the transaction form's validation rules.
 - **Account/To account:** `account` and `to_account` use [account names](#accounts) from the open ledger, ignoring case and surrounding spaces. A blank or missing `account` uses the first active cash or credit account, or the first archived one if none are active. Transfers require a different account in `to_account`; income and expenses ignore that column and require a cash or credit account. Create any named accounts before importing.
 

@@ -5,6 +5,7 @@
 use crate::model::{CategoryInfo, TransactionType};
 use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
+use std::path::PathBuf;
 
 /// Validates and inserts a date character with proper formatting
 /// Returns the new field content with auto-inserted hyphens and validation
@@ -119,11 +120,25 @@ pub fn validate_amount_char(field: &str, c: char) -> bool {
     c.is_ascii_digit() || (c == '.' && !field.contains('.'))
 }
 
+// Leave room for totals within Decimal's limit.
+fn check_magnitude(value: Decimal) -> Result<Decimal, String> {
+    if value.abs() >= Decimal::from(1_000_000_000_000i64) {
+        return Err("Amount must be less than 1,000,000,000,000".to_string());
+    }
+    Ok(value)
+}
+
+pub fn check_amount(amount: Decimal) -> Result<Decimal, String> {
+    if amount <= Decimal::ZERO {
+        return Err("Amount must be positive".to_string());
+    }
+    check_magnitude(amount)
+}
+
 /// Validates and parses an amount string
 pub fn validate_amount_string(amount_str: &str) -> Result<Decimal, String> {
-    match amount_str.parse::<Decimal>() {
-        Ok(amount) if amount > Decimal::ZERO => Ok(amount),
-        Ok(_) => Err("Amount must be positive".to_string()),
+    match amount_str.trim().parse::<Decimal>() {
+        Ok(amount) => check_amount(amount),
         Err(_) => Err("Invalid amount format".to_string()),
     }
 }
@@ -243,29 +258,37 @@ pub fn add_months(date: NaiveDate, months_to_add: i32) -> NaiveDate {
 
 // --- Path Validation ---
 
-/// Strips quotes from file paths to handle copy-paste scenarios
-/// Removes leading and trailing single or double quotes from paths
+/// Trim whitespace and outer quotes from pasted paths.
 pub fn strip_path_quotes(path: &str) -> String {
-    let mut result = path.to_string();
+    let trimmed = path.trim();
+    let trimmed = trimmed.strip_prefix(['"', '\'']).unwrap_or(trimmed);
+    let trimmed = trimmed.strip_suffix(['"', '\'']).unwrap_or(trimmed);
+    trimmed.trim().to_string()
+}
 
-    // Remove leading quotes
-    if result.starts_with('"') || result.starts_with('\'') {
-        result = result[1..].to_string();
+/// Expand `~` and resolve a pasted path against the current folder.
+pub fn resolve_user_path(input: &str) -> Option<PathBuf> {
+    let cleaned = strip_path_quotes(input);
+    if cleaned.is_empty() {
+        return None;
     }
-
-    // Remove trailing quotes
-    if result.ends_with('"') || result.ends_with('\'') {
-        result = result[..result.len() - 1].to_string();
-    }
-
-    result
+    // Terminals escape spaces in dropped file paths.
+    #[cfg(not(windows))]
+    let cleaned = cleaned.replace("\\ ", " ");
+    let expanded = match cleaned.strip_prefix('~') {
+        Some(rest) if rest.is_empty() || rest.starts_with(['/', '\\']) => {
+            dirs::home_dir()?.join(rest.trim_start_matches(['/', '\\']))
+        }
+        _ => PathBuf::from(&cleaned),
+    };
+    std::path::absolute(expanded).ok()
 }
 
 /// Like [`validate_amount_string`] but admits zero, for values that can legitimately be nothing
 /// (an investment account you have sold out of is worth 0, not "invalid").
 pub fn validate_non_negative_amount_string(amount_str: &str) -> Result<Decimal, String> {
-    match amount_str.parse::<Decimal>() {
-        Ok(amount) if amount >= Decimal::ZERO => Ok(amount),
+    match amount_str.trim().parse::<Decimal>() {
+        Ok(amount) if amount >= Decimal::ZERO => check_magnitude(amount),
         Ok(_) => Err("Amount cannot be negative".to_string()),
         Err(_) => Err("Invalid amount format".to_string()),
     }

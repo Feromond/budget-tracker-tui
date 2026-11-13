@@ -312,16 +312,6 @@ pub fn render_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
         let pos: f64 = 1.0 + ((x_max - 1.0) * (i as f64) / (n_ticks as f64 - 1.0));
         x_labels.push(Span::raw(format!("{:.0}", pos.round())));
     }
-    // Y-axis ticks: 0, 1/4 max, 1/2 max, 3/4 max, max
-    let y_max = max_expense.to_f64().unwrap_or(0.0).max(10.0);
-    let y_labels = vec![
-        Span::raw("0"),
-        Span::raw(format!("{:.0}", y_max * 0.25)),
-        Span::raw(format!("{:.0}", y_max * 0.5)),
-        Span::raw(format!("{:.0}", y_max * 0.75)),
-        Span::raw(format!("{:.0}", y_max)),
-    ];
-
     // Add cumulative budget line if in cumulative mode and budget is set
     let mut cumulative_budget_line: Option<Vec<(f64, f64)>> = None;
     if app.summary_cumulative_mode
@@ -351,6 +341,23 @@ pub fn render_summary_view(f: &mut Frame, app: &mut App, area: Rect) {
             ));
         }
     }
+    let budget_top = cumulative_budget_line
+        .as_ref()
+        .and_then(|line| line.last())
+        .map_or(0.0, |(_, y)| *y);
+    let y_max = max_expense
+        .to_f64()
+        .unwrap_or(0.0)
+        .max(budget_top)
+        .max(10.0);
+    let y_labels = vec![
+        Span::raw("0"),
+        Span::raw(format!("{:.0}", y_max * 0.25)),
+        Span::raw(format!("{:.0}", y_max * 0.5)),
+        Span::raw(format!("{:.0}", y_max * 0.75)),
+        Span::raw(format!("{:.0}", y_max)),
+    ];
+
     if let Some(ref budget_line) = cumulative_budget_line {
         datasets.push(
             Dataset::default()

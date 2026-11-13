@@ -746,6 +746,14 @@ pub struct Portfolio {
     entries: Vec<InvestmentEntry>,
 }
 
+/// `part` as a percentage of `whole`, ignoring bases below one cent.
+pub fn percent_of(part: Decimal, whole: Decimal) -> Option<Decimal> {
+    if whole < Decimal::new(1, 2) {
+        return None;
+    }
+    part.checked_div(whole)?.checked_mul(Decimal::from(100))
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct InvestmentPosition {
     pub value: Decimal,
@@ -759,7 +767,7 @@ impl InvestmentPosition {
     }
 
     pub fn roi(&self) -> Option<Decimal> {
-        (self.invested > Decimal::ZERO).then(|| (self.gain() / self.invested) * Decimal::from(100))
+        percent_of(self.gain(), self.invested)
     }
 }
 
@@ -1002,8 +1010,7 @@ impl Portfolio {
             .map(|entry| entry.amount * entry.entry_kind.flow_sign() * weight(entry.date))
             .sum();
 
-        let base = opening + weighted;
-        (base > Decimal::ZERO).then(|| (gain / base) * Decimal::from(100))
+        percent_of(gain, opening + weighted)
     }
 
     pub fn annualized_return(

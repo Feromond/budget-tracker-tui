@@ -49,8 +49,8 @@ pub fn render_io_prompt(f: &mut Frame, app: &App, area: Rect) {
 
     let input_area = Rect::new(popup.x + 2, popup.y + 2, popup.width.saturating_sub(4), 1);
     let input_width = input_area.width.max(1);
-    let cursor = app.io_path_cursor as u16;
-    let scroll_x = cursor.saturating_sub(input_width.saturating_sub(1));
+    let cursor = crate::ui::helpers::cursor_column(&app.io_path_input, app.io_path_cursor);
+    let scroll_x = crate::ui::helpers::scroll_to_show(cursor, input_width);
     f.render_widget(
         Paragraph::new(app.io_path_input.as_str()).scroll((0, scroll_x)),
         input_area,

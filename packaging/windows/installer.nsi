@@ -420,9 +420,23 @@ SectionEnd
 !macro CheckIfAppIsRunning
   nsis_tauri_utils::FindProcess "${MAINBINARYNAME}.exe"
   Pop $R0
+  ; Give the app time to exit after starting an update.
+  ${If} $R0 = 0
+  ${AndIf} $PassiveMode = 1
+    StrCpy $R1 0
+    passive_wait:
+      Sleep 250
+      IntOp $R1 $R1 + 1
+      nsis_tauri_utils::FindProcess "${MAINBINARYNAME}.exe"
+      Pop $R0
+      ${If} $R0 = 0
+      ${AndIf} $R1 < 20
+        Goto passive_wait
+      ${EndIf}
+  ${EndIf}
   ${If} $R0 = 0
       IfSilent kill 0
-      ${IfThen} $PassiveMode != 1 ${|} MessageBox MB_OKCANCEL "$(appRunningOkKill)" IDOK kill IDCANCEL cancel ${|}
+      MessageBox MB_OKCANCEL "$(appRunningOkKill)" IDOK kill IDCANCEL cancel
       kill:
         nsis_tauri_utils::KillProcess "${MAINBINARYNAME}.exe"
         Pop $R0

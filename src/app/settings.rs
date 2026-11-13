@@ -301,12 +301,12 @@ impl App {
             }
         };
 
-        // Validate Path
-        if new_database_path_str.is_empty() {
+        let Some(new_database_path) = crate::validation::resolve_user_path(&new_database_path_str)
+        else {
             self.set_status_message("Error: Database path cannot be empty.", None);
             return;
-        }
-        let new_database_path = PathBuf::from(&new_database_path_str);
+        };
+        let new_database_path_str = new_database_path.to_string_lossy().to_string();
 
         let seed_categories = if self.categories.is_empty() {
             load_seed_categories().unwrap_or_default()
@@ -317,6 +317,9 @@ impl App {
             &self.database_path,
             &new_database_path,
             &seed_categories,
+            backups_enabled_val
+                .unwrap_or(self.backups_enabled)
+                .then_some(self.backup_instance_id.as_str()),
         ) {
             self.set_status_message(
                 format!(

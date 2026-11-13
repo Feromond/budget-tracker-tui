@@ -78,13 +78,22 @@ pub fn render_field_form<K: FieldKey, const N: usize>(
         .constraints(constraints)
         .split(area);
 
+    let cursor_col = crate::ui::helpers::cursor_column(&fields[focused_field], cursor);
+    let scroll_for =
+        |chunk: Rect| crate::ui::helpers::scroll_to_show(cursor_col, chunk.width.saturating_sub(2));
     for (index, widget) in input_widgets
         .iter()
         .enumerate()
         .skip(scroll_offset)
         .take(max_visible_fields)
     {
-        f.render_widget(widget.clone(), form_chunks[index - scroll_offset]);
+        let chunk = form_chunks[index - scroll_offset];
+        let widget = if index == focused_field.index() && focused_field.kind().is_editable() {
+            widget.clone().scroll((0, scroll_for(chunk)))
+        } else {
+            widget.clone()
+        };
+        f.render_widget(widget, chunk);
     }
 
     let mut form_block = Block::default()
@@ -102,14 +111,11 @@ pub fn render_field_form<K: FieldKey, const N: usize>(
         )
     {
         let field_index = focused_field.index();
-        let text = &fields[focused_field];
-        let cursor_byte_idx = cursor.min(text.len());
-        let visual_cursor = text[..cursor_byte_idx].chars().count() as u16;
-
         if field_index >= scroll_offset
             && field_index < scroll_offset + max_visible_fields
             && let Some(chunk) = form_chunks.get(field_index - scroll_offset)
         {
+            let visual_cursor = cursor_col - scroll_for(*chunk);
             f.set_cursor_position(Position::new(chunk.x + visual_cursor + 1, chunk.y + 1));
         }
     }

@@ -57,6 +57,16 @@ pub fn render_settings_form(f: &mut Frame, app: &App, area: Rect) {
         .border_style(Style::default().fg(Color::Blue))
         .style(Style::default().bg(Color::Black))
         .title(" Settings - [Esc] Cancel, [Enter] Save/Action ")
+        .title(
+            Line::from(vec![
+                Span::styled(" Budget Tracker ", Style::default().fg(Color::Cyan)),
+                Span::styled(
+                    concat!("v", env!("CARGO_PKG_VERSION"), " "),
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                ),
+            ])
+            .right_aligned(),
+        )
         .title_bottom(Line::from(help_text).centered());
 
     f.render_widget(popup_block, area);

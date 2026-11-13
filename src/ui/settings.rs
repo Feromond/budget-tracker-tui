@@ -62,9 +62,7 @@ pub fn render_settings_form(f: &mut Frame, app: &App, area: Rect) {
                 Span::styled(" Budget Tracker ", Style::default().fg(Color::Cyan)),
                 Span::styled(
                     concat!("v", env!("CARGO_PKG_VERSION"), " "),
-                    Style::default()
-                        .fg(Color::Red)
-                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                 ),
             ])
             .right_aligned(),

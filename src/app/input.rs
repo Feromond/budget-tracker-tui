@@ -287,9 +287,18 @@ impl App {
         if self.set_settings_toggle(false) {
             return;
         }
-        if self.settings_state.edit_cursor > 0 {
-            self.settings_state.edit_cursor -= 1;
-        }
+        let Some(item) = self
+            .settings_state
+            .items
+            .get(self.settings_state.selected_index)
+        else {
+            return;
+        };
+        let cursor = self.settings_state.edit_cursor.min(item.value.len());
+        self.settings_state.edit_cursor = item.value[..cursor]
+            .char_indices()
+            .next_back()
+            .map_or(0, |(at, _)| at);
     }
 
     /// Returns true when the row should skip text-cursor movement.
@@ -318,9 +327,12 @@ impl App {
             .settings_state
             .items
             .get(self.settings_state.selected_index)
-            && self.settings_state.edit_cursor < item.value.len()
+            && let Some(c) = item
+                .value
+                .get(self.settings_state.edit_cursor..)
+                .and_then(|rest| rest.chars().next())
         {
-            self.settings_state.edit_cursor += 1;
+            self.settings_state.edit_cursor += c.len_utf8();
         }
     }
 
@@ -358,25 +370,7 @@ impl App {
                 }
             }
             crate::app::settings_types::SettingType::Path => {
-                let item = &mut self.settings_state.items[idx];
-                item.value.insert(self.settings_state.edit_cursor, c);
-
-                let original_len = item.value.len();
-                let stripped = crate::validation::strip_path_quotes(&item.value);
-                let new_len = stripped.len();
-                item.value = stripped;
-
-                let chars_removed = original_len - new_len;
-                if chars_removed > 0 {
-                    if self.settings_state.edit_cursor > chars_removed {
-                        self.settings_state.edit_cursor -= chars_removed;
-                    } else {
-                        self.settings_state.edit_cursor = 0;
-                    }
-                    self.settings_state.edit_cursor = item.value.len();
-                } else {
-                    self.settings_state.edit_cursor += c.len_utf8();
-                }
+                self.insert_char_at_settings_cursor(idx, c);
             }
             crate::app::settings_types::SettingType::Toggle => {}
             crate::app::settings_types::SettingType::Action => {}
@@ -424,14 +418,6 @@ impl App {
                     if prev < item.value.len() {
                         item.value.remove(prev);
                         self.settings_state.edit_cursor = prev;
-                    }
-
-                    if setting_type == crate::app::settings_types::SettingType::Path {
-                        let stripped = crate::validation::strip_path_quotes(&item.value);
-                        item.value = stripped;
-                        if self.settings_state.edit_cursor > item.value.len() {
-                            self.settings_state.edit_cursor = item.value.len();
-                        }
                     }
                 }
             }

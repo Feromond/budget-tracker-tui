@@ -24,38 +24,32 @@ impl App {
         let current_type_str = self.add_edit_fields[AddEditField::TransactionType].trim();
         let Ok(current_type) = TransactionType::try_from(current_type_str) else {
             self.current_selection_list.clear();
+            self.fuzzy_selection_pairs.clear();
             return;
         };
 
         let query = self.search_query.to_lowercase();
 
-        // Collect all (Category, Subcategory) pairs for the transaction type
-        // If subcategory is empty, just use category
-        // Format in list: "Category > Subcategory" or just "Category"
-
-        let mut options: Vec<String> = Vec::new();
-        let mut unique_pairs: HashSet<(String, String)> = HashSet::new();
-
-        for cat_info in &self.categories {
-            if cat_info.transaction_type == current_type {
-                unique_pairs.insert((cat_info.category.clone(), cat_info.subcategory.clone()));
-            }
-        }
-
-        for (cat, sub) in unique_pairs {
-            let display_str = if sub.is_empty() {
-                cat.clone()
-            } else {
-                format!("{} > {}", cat, sub)
-            };
-
-            if query.is_empty() || display_str.to_lowercase().contains(&query) {
-                options.push(display_str);
-            }
-        }
-
+        let pairs: HashSet<(String, String)> = self
+            .categories
+            .iter()
+            .filter(|cat_info| cat_info.transaction_type == current_type)
+            .map(|cat_info| (cat_info.category.clone(), cat_info.subcategory.clone()))
+            .collect();
+        let mut options: Vec<(String, (String, String))> = pairs
+            .into_iter()
+            .map(|(cat, sub)| {
+                let display = if sub.is_empty() {
+                    cat.clone()
+                } else {
+                    format!("{} > {}", cat, sub)
+                };
+                (display, (cat, sub))
+            })
+            .filter(|(display, _)| query.is_empty() || display.to_lowercase().contains(&query))
+            .collect();
         options.sort_unstable();
-        self.current_selection_list = options;
+        (self.current_selection_list, self.fuzzy_selection_pairs) = options.into_iter().unzip();
 
         // Adjust selection if out of bounds
         let len = self.current_selection_list.len();
@@ -73,15 +67,10 @@ impl App {
 
     pub(crate) fn confirm_fuzzy_selection(&mut self) {
         if let Some(selected_index) = self.selection_list_state.selected()
-            && let Some(selected_value) = self.current_selection_list.get(selected_index)
+            && let Some((category, subcategory)) = self.fuzzy_selection_pairs.get(selected_index)
         {
-            // Parse "Category > Subcategory" or "Category"
-            let parts: Vec<&str> = selected_value.split(" > ").collect();
-            let category = parts[0];
-            let subcategory = if parts.len() > 1 { parts[1] } else { "" };
-
-            self.add_edit_fields[AddEditField::Category] = category.to_string();
-            self.add_edit_fields[AddEditField::Subcategory] = subcategory.to_string();
+            self.add_edit_fields[AddEditField::Category] = category.clone();
+            self.add_edit_fields[AddEditField::Subcategory] = subcategory.clone();
             self.add_edit_fields.focus(AddEditField::Date);
         }
 
@@ -102,6 +91,7 @@ impl App {
         };
         self.selecting_field = None;
         self.current_selection_list.clear();
+        self.fuzzy_selection_pairs.clear();
         self.search_query.clear();
     }
 }

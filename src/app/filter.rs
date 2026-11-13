@@ -278,7 +278,8 @@ impl App {
         {
             let val_clone = val.clone();
             self.clear_simple_filter_field_only();
-            let v = if field == AdvancedFilterField::Subcategory && val_clone == "(None)" {
+            // Use the index: a real subcategory can also be named "(None)".
+            let v = if field == AdvancedFilterField::Subcategory && idx == 0 {
                 ""
             } else {
                 val_clone.as_str()

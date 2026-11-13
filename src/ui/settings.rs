@@ -152,13 +152,13 @@ pub fn render_settings_form(f: &mut Frame, app: &App, area: Rect) {
             };
 
             // Horizontal scrolling for long values
-            let mut scroll_x = 0;
-            if is_focused {
-                let cursor = app.settings_state.edit_cursor as u16;
-                if cursor >= input_width {
-                    scroll_x = cursor - input_width + 1;
-                }
-            }
+            let cursor =
+                crate::ui::helpers::cursor_column(&item.value, app.settings_state.edit_cursor);
+            let scroll_x = if is_focused {
+                crate::ui::helpers::scroll_to_show(cursor, input_width)
+            } else {
+                0
+            };
 
             let p = if is_action {
                 Paragraph::new(Line::from(vec![Span::styled(
@@ -198,7 +198,6 @@ pub fn render_settings_form(f: &mut Frame, app: &App, area: Rect) {
                 && item.setting_type != crate::app::settings_types::SettingType::Toggle
                 && item.setting_type != crate::app::settings_types::SettingType::Action
             {
-                let cursor = app.settings_state.edit_cursor as u16;
                 let visible_cursor = cursor.saturating_sub(scroll_x);
                 f.set_cursor_position(Position::new(chunk.x + visible_cursor + 1, chunk.y + 1));
             }

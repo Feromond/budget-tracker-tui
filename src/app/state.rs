@@ -157,6 +157,8 @@ pub struct App {
     // Category/Subcategory Selection Popup State
     pub(crate) selecting_field: Option<SelectingField>,
     pub(crate) current_selection_list: Vec<String>,
+    // Keep names separate: they can contain " > ".
+    pub(crate) fuzzy_selection_pairs: Vec<(String, String)>,
     pub(crate) selection_list_state: ListState,
     pub(crate) type_to_select: crate::app::util::TypeToSelect,
     // Category Summary State
@@ -465,6 +467,7 @@ impl App {
             summary_cumulative_mode: false,
             selecting_field: None,
             current_selection_list: Vec::new(),
+            fuzzy_selection_pairs: Vec::new(),
             selection_list_state: ListState::default(),
             type_to_select: crate::app::util::TypeToSelect::new(),
             category_summaries: HashMap::new(),
@@ -971,6 +974,7 @@ impl App {
         current_database_path: &Path,
         new_database_path: &Path,
         seed_categories: &[CategoryInfo],
+        backup_instance: Option<&str>,
     ) -> Result<(), Error> {
         if current_database_path != new_database_path
             && !new_database_path.exists()
@@ -986,6 +990,13 @@ impl App {
                     err
                 ))
             })?;
+        }
+
+        if let Some(instance) = backup_instance
+            && backup::database_has_content(new_database_path)
+            && let Some(version) = backup::pending_migration_version(new_database_path)
+        {
+            backup::create(new_database_path, instance, BackupKind::PreMigrate(version))?;
         }
 
         Self::initialize_category_database(new_database_path, seed_categories)

@@ -71,8 +71,18 @@ pub fn render_advanced_filter_form(f: &mut Frame, app: &App, area: Rect) {
         .margin(margin)
         .constraints(cons)
         .split(area);
+    let text = &app.advanced_filter_fields[focused_field];
+    let cursor_col = crate::ui::helpers::cursor_column(text, app.advanced_filter_cursor);
+    let scroll_for =
+        |chunk: Rect| crate::ui::helpers::scroll_to_show(cursor_col, chunk.width.saturating_sub(2));
     for (idx, w) in widgets.iter().enumerate().skip(offset).take(maxv) {
-        f.render_widget(w.clone(), chunks[idx - offset]);
+        let chunk = chunks[idx - offset];
+        let w = if idx == focused_field.index() && focused_field.kind().is_editable() {
+            w.clone().scroll((0, scroll_for(chunk)))
+        } else {
+            w.clone()
+        };
+        f.render_widget(w, chunk);
     }
     f.render_widget(
         Block::default()
@@ -82,14 +92,10 @@ pub fn render_advanced_filter_form(f: &mut Frame, app: &App, area: Rect) {
     );
     if focused_field.kind().is_editable() {
         let field_idx = focused_field.index();
-        let text = &app.advanced_filter_fields[focused_field];
-        let cursor_pos = app.advanced_filter_cursor.min(text.len());
-        // Calculate visual cursor position (accounting for potential multi-byte chars)
-        let visual_cursor = text[..cursor_pos].chars().count() as u16;
-
         if field_idx >= offset && field_idx < offset + maxv {
             let vis = field_idx - offset;
             let ch = chunks[vis];
+            let visual_cursor = cursor_col - scroll_for(ch);
             f.set_cursor_position(Position::new(ch.x + visual_cursor + 1, ch.y + 1));
         }
     }

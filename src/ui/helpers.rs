@@ -73,9 +73,9 @@ pub fn format_signed_amount(amount: &Decimal) -> String {
 pub fn format_hours(amount: &Decimal, hourly_rate: Option<Decimal>) -> String {
     if let Some(rate) = hourly_rate
         && rate > Decimal::ZERO
+        && let Some(hours) = amount.checked_div(rate)
     {
-        let hours = (amount / rate).round_dp(1);
-        return format!("{:.1}h", hours);
+        return format!("{:.1}h", hours.round_dp(1));
     }
     format_amount(amount)
 }
@@ -151,4 +151,17 @@ pub fn month_to_color(month: u32) -> Color {
         12 => Color::Cyan,
         _ => Color::White,
     }
+}
+
+/// Convert a byte offset to a screen column, accounting for character width.
+pub fn cursor_column(text: &str, cursor: usize) -> u16 {
+    let mut end = cursor.min(text.len());
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    u16::try_from(Span::raw(&text[..end]).width()).unwrap_or(u16::MAX)
+}
+
+pub fn scroll_to_show(column: u16, width: u16) -> u16 {
+    column.saturating_sub(width.saturating_sub(1))
 }

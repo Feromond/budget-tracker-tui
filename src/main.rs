@@ -51,6 +51,13 @@ fn main() -> StdResult<(), Box<dyn std::error::Error>> {
 
     app::updater::clean_up();
 
+    // Restore the terminal before printing a panic.
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        restore_terminal();
+        default_hook(info);
+    }));
+
     enable_raw_mode()?;
     stdout()
         .execute(EnterAlternateScreen)?
@@ -62,9 +69,7 @@ fn main() -> StdResult<(), Box<dyn std::error::Error>> {
 
     let run_result = run_app(&mut terminal, &mut app);
 
-    stdout().execute(DisableBracketedPaste)?;
-    disable_raw_mode()?;
-    stdout().execute(LeaveAlternateScreen)?;
+    restore_terminal();
 
     if let Some(msg) = initial_status {
         eprintln!("Initial Status: {}", msg);
@@ -85,4 +90,11 @@ fn main() -> StdResult<(), Box<dyn std::error::Error>> {
             Err(run_err)
         }
     }
+}
+
+fn restore_terminal() {
+    let _ = stdout().execute(DisableBracketedPaste);
+    let _ = disable_raw_mode();
+    let _ = stdout().execute(LeaveAlternateScreen);
+    let _ = stdout().execute(crossterm::cursor::Show);
 }

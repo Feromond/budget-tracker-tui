@@ -101,6 +101,22 @@ where
 // Shift has no distinct meaning for these keys, but is often still held when
 // pressing them while typing capitals; treat them as their unmodified forms.
 fn normalize_key(mut key: KeyEvent) -> KeyEvent {
+    if let KeyCode::Char(c) = key.code {
+        // Windows sends AltGr as Ctrl+Alt. Allow symbols but preserve letter and digit shortcuts.
+        #[cfg(windows)]
+        if key
+            .modifiers
+            .contains(KeyModifiers::CONTROL | KeyModifiers::ALT)
+            && !c.is_control()
+            && !c.is_ascii_alphanumeric()
+        {
+            key.modifiers -= KeyModifiers::CONTROL | KeyModifiers::ALT;
+        }
+        // Windows keeps Shift on typed symbols and digits, including AZERTY numbers.
+        if !c.is_alphabetic() {
+            key.modifiers -= KeyModifiers::SHIFT;
+        }
+    }
     if key.modifiers == KeyModifiers::SHIFT
         && matches!(
             key.code,

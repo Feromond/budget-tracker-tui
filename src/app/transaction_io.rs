@@ -36,12 +36,10 @@ impl App {
     }
 
     pub(crate) fn import_transactions(&mut self) {
-        let path_str = crate::validation::strip_path_quotes(&self.io_path_input);
-        if path_str.trim().is_empty() {
+        let Some(path) = crate::validation::resolve_user_path(&self.io_path_input) else {
             self.set_status_message("Error: enter a CSV path to import.", None);
             return;
-        }
-        let path = PathBuf::from(&path_str);
+        };
         if !path.exists() {
             self.set_status_message(format!("Error: file '{}' not found.", path.display()), None);
             return;
@@ -117,12 +115,10 @@ impl App {
     }
 
     pub(crate) fn export_transactions(&mut self) {
-        let path_str = crate::validation::strip_path_quotes(&self.io_path_input);
-        if path_str.trim().is_empty() {
+        let Some(path) = crate::validation::resolve_user_path(&self.io_path_input) else {
             self.set_status_message("Error: enter a destination path to export.", None);
             return;
-        }
-        let path = PathBuf::from(&path_str);
+        };
 
         // save_transactions truncates whatever it opens.
         if Self::resolve_io_path(&path) == Self::resolve_io_path(&self.database_path) {

@@ -15,7 +15,9 @@ const MANIFEST_URL: &str =
     "https://github.com/Feromond/budget-tracker-tui/releases/latest/download/latest.json";
 const DOWNLOAD_PREFIX: &str = "https://github.com/Feromond/budget-tracker-tui/releases/download/";
 const BREW_API: &str = "https://formulae.brew.sh/api/formula/budget-tracker.json";
-const CRATES_API: &str = "https://crates.io/api/v1/crates/budget-tracker-tui";
+// Limit the response to fit `MAX_MANIFEST`.
+const CRATES_API: &str =
+    "https://crates.io/api/v1/crates/budget-tracker-tui?include=default_version";
 const USER_AGENT: &str = concat!(
     "budget-tracker/",
     env!("CARGO_PKG_VERSION"),
@@ -138,11 +140,11 @@ pub fn check() -> Option<Update> {
             }
             #[derive(Deserialize)]
             struct Info {
-                max_stable_version: String,
+                default_version: String,
             }
             let info: Crate =
                 serde_json::from_slice(&get(&agent, CRATES_API, MAX_MANIFEST)?).ok()?;
-            (info.krate.max_stable_version, Action::Cargo { root })
+            (info.krate.default_version, Action::Cargo { root })
         }
         install => {
             let manifest = fetch_manifest(&agent)?;

@@ -74,8 +74,8 @@ pub fn render_ledger_editor(f: &mut Frame, app: &App, area: Rect) {
     );
     f.render_widget(input, chunks[0]);
 
-    let cursor_byte_idx = app.ledger_name_cursor.min(app.ledger_name_input.len());
-    let visual_cursor = app.ledger_name_input[..cursor_byte_idx].chars().count() as u16;
+    let visual_cursor =
+        crate::ui::helpers::cursor_column(&app.ledger_name_input, app.ledger_name_cursor);
     f.set_cursor_position(Position::new(
         chunks[0].x + visual_cursor + 1,
         chunks[0].y + 1,

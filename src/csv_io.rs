@@ -115,6 +115,14 @@ impl Accounts {
         } else {
             resolve(&row.account)?
         };
+        let amount = crate::validation::check_amount(row.amount).map_err(|err| {
+            format!(
+                "The row '{}' on {}: {}.",
+                row.description,
+                row.date.format(DATE_FORMAT),
+                err
+            )
+        })?;
         let to_account_id = match row.transaction_type {
             TransactionType::Transfer if row.to_account.trim().is_empty() => {
                 return Err(format!(
@@ -130,7 +138,7 @@ impl Accounts {
         Ok(Transaction {
             date: row.date,
             description: row.description.clone(),
-            amount: row.amount,
+            amount,
             transaction_type: row.transaction_type,
             category: row.category.clone(),
             subcategory: row.subcategory.clone(),

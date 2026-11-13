@@ -1,5 +1,5 @@
 use crate::app::state::{App, BudgetCategoryComparison, BudgetEditTarget};
-use crate::model::{BudgetEditScope, BudgetMonth};
+use crate::model::{BudgetEditScope, BudgetMonth, percent_of};
 use crate::ui::helpers::{
     clamp_table_scroll, format_amount, format_signed_amount, month_to_color, month_to_short_str,
 };
@@ -24,15 +24,14 @@ fn budget_panel_block(title: Line<'static>, borders: Borders) -> Block<'static> 
 }
 
 fn usage_color(actual: Decimal, target: Decimal) -> Color {
-    if target <= Decimal::ZERO {
+    let Some(percent) = percent_of(actual, target) else {
         return Color::DarkGray;
-    }
-    let ratio = (actual / target).to_f64().unwrap_or(0.0);
-    if ratio > 1.0 {
+    };
+    if percent > Decimal::from(100) {
         Color::LightRed
-    } else if ratio >= 0.85 {
+    } else if percent >= Decimal::from(85) {
         WARNING_COLOR
-    } else if ratio >= 0.60 {
+    } else if percent >= Decimal::from(60) {
         Color::LightYellow
     } else {
         Color::LightGreen
@@ -40,15 +39,10 @@ fn usage_color(actual: Decimal, target: Decimal) -> Color {
 }
 
 fn usage_percent(actual: Decimal, target: Decimal) -> String {
-    if target <= Decimal::ZERO {
-        return "N/A".to_string();
+    match percent_of(actual, target) {
+        Some(percent) => format!("{:.1}%", percent.round_dp(1)),
+        None => "N/A".to_string(),
     }
-
-    let percent = ((actual / target) * Decimal::from(100))
-        .round_dp(1)
-        .to_f64()
-        .unwrap_or(0.0);
-    format!("{percent:.1}%")
 }
 
 fn average_monthly_expense(monthly: &[(u32, Decimal)]) -> Decimal {
@@ -319,8 +313,8 @@ pub fn render_budget_target_editor(f: &mut Frame, app: &App, area: Rect) {
         .collect();
     f.render_widget(Paragraph::new(scope_lines), chunks[2]);
 
-    let cursor_byte_idx = app.budget_edit_cursor.min(app.budget_edit_input.len());
-    let visual_cursor = app.budget_edit_input[..cursor_byte_idx].chars().count() as u16;
+    let visual_cursor =
+        crate::ui::helpers::cursor_column(&app.budget_edit_input, app.budget_edit_cursor);
     f.set_cursor_position(Position::new(
         chunks[1].x + visual_cursor + 1,
         chunks[1].y + 1,

@@ -734,6 +734,8 @@ transaction. Keep a copy of your old CSV until you've checked the imported data.
 
 ## Updating
 
+Settings (`o`) shows the version you're running in its top right corner, and `budget-tracker --version` prints it too.
+
 The app checks for updates on startup. When the popup appears, press `u` to update:
 
 - **Prebuilt binary:** downloads and verifies the update, then replaces the app. Press `r` to restart.

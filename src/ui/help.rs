@@ -102,7 +102,10 @@ fn settings_hints(app: &App, width: usize) -> Vec<Span<'static>> {
         .settings_state
         .items
         .get(app.settings_state.selected_index);
-    let mut hints = vec![Hint::new("Tab/↑↓", "Nav", "Nav", Color::LightYellow, 3)];
+    let mut hints = vec![
+        Hint::new("↑↓", "Move", "Move", Color::LightYellow, 3),
+        Hint::new("Tab", "Section", "Sect", Color::LightYellow, 3),
+    ];
     match item.map(|item| (item.key, &item.setting_type)) {
         Some((key, SettingType::Path)) => {
             hints.push(Hint::new("←/→", "Cursor", "Cur", Color::LightCyan, 4));
@@ -593,28 +596,26 @@ fn mode_hints(app: &App, width: usize) -> Vec<Span<'_>> {
 
 pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
     let width = area.width.saturating_sub(2) as usize;
-    let help_spans = if app.file_browser.is_some() {
-        file_browser_hints(width)
+    let bold = Style::default().add_modifier(Modifier::BOLD);
+    // The file browser doesn't handle Ctrl+H.
+    let (help_spans, title) = if app.file_browser.is_some() {
+        (
+            file_browser_hints(width),
+            Line::from(Span::styled("Help - File Browser", bold)),
+        )
     } else {
-        mode_hints(app, width)
+        (
+            mode_hints(app, width),
+            Line::from(vec![
+                Span::styled("Help - ", bold),
+                Span::styled("Ctrl+H", bold.fg(Color::Red)),
+                Span::styled(" For More Info", bold),
+            ]),
+        )
     };
 
     let help_paragraph = Paragraph::new(Line::from(help_spans))
         .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(Line::from(vec![
-                    Span::styled("Help - ", Style::default().add_modifier(Modifier::BOLD)),
-                    Span::styled(
-                        "Ctrl+H",
-                        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(
-                        " For More Info",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    ),
-                ])),
-        );
+        .block(Block::default().borders(Borders::ALL).title(title));
     f.render_widget(help_paragraph, area);
 }

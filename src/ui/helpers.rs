@@ -1,6 +1,6 @@
 use crate::model::{Transaction, TransactionType};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use ratatui::style::Color;
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{ListState, TableState};
 use rust_decimal::{Decimal, RoundingStrategy};
@@ -166,6 +166,27 @@ pub fn scroll_to_show(column: u16, width: u16) -> u16 {
     column.saturating_sub(width.saturating_sub(1))
 }
 
+pub fn key_chip(key: &str, label: &str, bright: bool) -> Line<'static> {
+    let (key_style, label_style) = if bright {
+        (
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::LightCyan)
+                .add_modifier(Modifier::BOLD),
+            Style::default().fg(Color::LightCyan),
+        )
+    } else {
+        (
+            Style::default().fg(Color::White).bg(Color::DarkGray),
+            Style::default().fg(Color::Gray),
+        )
+    };
+    Line::from(vec![
+        Span::styled(format!(" {key} "), key_style),
+        Span::styled(format!(" {label}"), label_style),
+    ])
+}
+
 pub fn format_size(bytes: u64) -> String {
     const KIB: f64 = 1024.0;
     let bytes = bytes as f64;
@@ -185,6 +206,14 @@ pub fn keep_end(text: &str, width: usize) -> String {
     }
     let kept: String = text.chars().skip(count - (width - 1)).collect();
     format!("…{kept}")
+}
+
+pub fn keep_start(text: &str, width: usize) -> String {
+    if text.chars().count() <= width || width < 2 {
+        return text.to_string();
+    }
+    let kept: String = text.chars().take(width - 1).collect();
+    format!("{kept}…")
 }
 
 pub fn home_relative(path: &std::path::Path) -> Option<std::path::PathBuf> {

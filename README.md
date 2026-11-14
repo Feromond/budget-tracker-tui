@@ -55,7 +55,7 @@ brew install budget-tracker
   <br><i>Cumulative multi-month chart</i><br><br>
   <img width="1000" alt="investment-account-view" src="https://github.com/user-attachments/assets/e0e20782-97e6-492a-8ab8-e7ceab191f60" />
   <br><i>Investments</i><br><br>
-  <img width="1000" alt="settings-with-help-menu-open" src="https://github.com/user-attachments/assets/adbf0b3d-0146-4f7d-b367-19e42a495306" />
+  <img width="1000" alt="settings-with-help-menu" src="https://github.com/user-attachments/assets/855c75dc-cd81-43e4-be32-5ebdd4077738" />
   <br><i>Settings with help menu open</i><br><br>
   <img width="1000" alt="fuzzy-search-categories" src="https://github.com/user-attachments/assets/ab985691-ca2f-4a07-bbc1-4c9ec3393b39" />
   <br><i>Fuzzy search for categories</i><br><br>

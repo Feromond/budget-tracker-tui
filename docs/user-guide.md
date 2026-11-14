@@ -523,7 +523,7 @@ transactions. You can delete the old category with `d` once no ledger needs it.
 
 ## The category catalog
 
-The catalog holds your categories and subcategories. Open it from Settings (*Manage Categories*) or with `c` from the budget view. `q`/`Esc` clears an applied filter first. With no filter active, it returns to whichever view you came from.
+Manage categories and subcategories in Settings → *Categories*, or press `c` from the budget view. `q`/`Esc` clears the filter if one is active; otherwise, it returns to the previous view.
 
 - `↑`/`↓` move between entries, `PageUp`/`PageDown` jump by page, `Ctrl+↑`/`Ctrl+↓` jump to the first/last entry
 - `f` filters the catalog as you type; while typing, `Enter` keeps it applied, and `Esc` or `Ctrl+R` clears it
@@ -579,7 +579,7 @@ The copy has its own transactions and budgets, but still shares the category cat
 
 ## Import and export
 
-**Open:** Press `o` from the main view, then look under *Data Management*.
+**Open:** Press `o`, then `Tab` for *Import & Export*.
 
 ### Import transactions
 
@@ -609,41 +609,33 @@ The export contains all transactions in the open ledger, regardless of the activ
 
 ## Settings
 
-Press `o` to open settings. Use `Tab` or `↑`/`↓` to move between settings and type into number or path fields. For toggles, `←` sets No and `→` sets Yes.
+Press `o` to open settings. Use `↑`/`↓` to move between settings and `Tab`/`Shift+Tab` to switch sections. Help appears below the selected setting. Type into number or path fields; use `←` for off and `→` for on.
 
-Press `Enter` on a regular setting to save all preferences and return to the main view. On Ledger, Accounts, Manage Categories, Import, Export, or Manage Backups, it opens that action instead. `Esc` discards unsaved preference changes. Saving settings clears transaction filters.
+On a preference, `Enter` saves and returns to the main view. On an action (Ledger, Accounts, Categories, Import, Export, or Manage Backups), it opens that action. `Esc` discards unsaved changes. Saving clears transaction filters.
 
-The menu is grouped into sections:
-
-**Data Management**
+**Data**
 
 - *Database Path*: where the SQLite database lives (see [Data storage and backups](#data-storage-and-backups)).
-- *Ledger*: shows the ledger currently open; opens the [ledger list](#ledgers) to switch or manage them.
+- *Ledger*: opens the [ledger list](#ledgers) to switch, add, rename, or delete ledgers.
 - *Accounts*: the open ledger's cash, credit, and investment [accounts](#accounts).
-- *Manage Categories*: opens the [category catalog](#the-category-catalog).
+- *Categories*: opens the [category catalog](#the-category-catalog).
+
+**Import & Export**
+
 - *Import Transactions (CSV)*: adds transactions to the open ledger, skipping rows with matching core fields. See [Import transactions](#import-transactions).
-- *Export Transactions (CSV)*: writes the open ledger's transactions to a CSV file for transfer or use elsewhere; see [Import and export](#import-and-export).
+- *Export Transactions (CSV)*: saves the open ledger's transactions as CSV. See [Import and export](#import-and-export).
 
 **Backups**
 
 - *Automatic Backups*: takes daily and pre-upgrade snapshots at startup. On by default; turning it off disables both. See [Backups](#backups).
-- *Automatic Backups to Keep*: how many automatic snapshots to keep for this install's ID (1-50, default 5). Only shown while automatic backups are on.
+- *Backups to Keep*: automatic snapshots to keep for this install (1-50, default 5). Shown only when automatic backups are on.
 - *Manage Backups*: opens the backup list to take, restore, or delete a snapshot.
 
-**Transaction View**
+**Preferences**
 
-- *Hourly Rate*: optionally enter your hourly earning rate; a *Show Costs in Hours* toggle then appears that displays amounts as hours worked.
-
-**Recurring Transactions**
-
-- *Forecast Months Ahead*: projects recurring occurrences this many months past today (0-60). `0` stops at today.
-
-**Input Preferences**
-
-- *Fuzzy Search Categories*: opens a searchable `Category > Subcategory` list when choosing Category in the transaction form. Despite the setting's name, it matches text contained in the names, ignoring case, not typos. It doesn't change the separate Subcategory picker or advanced-filter pickers.
-
-**General Preferences**
-
+- *Hourly Rate*: enter your hourly rate to show the *Show Costs in Hours* toggle and view amounts as hours worked.
+- *Forecast Months Ahead*: months to forecast recurring transactions (0-60). `0` stops at today.
+- *Fuzzy Search Categories*: opens a searchable `Category > Subcategory` list in the transaction form. Search matches text within names, ignoring case but not typos. It doesn't affect the separate Subcategory or advanced-filter pickers.
 - *Hide Help Bar*: hides the bottom help bar if you want the extra screen space (`Ctrl+H` still works).
 
 ## Backups

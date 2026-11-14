@@ -28,12 +28,10 @@ pub fn handle_settings_mode(app: &mut App, key_event: KeyEvent) {
                 app.open_file_browser(BrowseTarget::DatabasePath);
             }
         }
-        (KeyCode::Tab, KeyModifiers::NONE) | (KeyCode::Down, KeyModifiers::NONE) => {
-            app.next_settings_field()
-        }
-        (KeyCode::BackTab, KeyModifiers::NONE) | (KeyCode::Up, KeyModifiers::NONE) => {
-            app.previous_settings_field()
-        }
+        (KeyCode::Down, KeyModifiers::NONE) => app.next_settings_field(),
+        (KeyCode::Up, KeyModifiers::NONE) => app.previous_settings_field(),
+        (KeyCode::Tab, KeyModifiers::NONE) => app.jump_settings_section(true),
+        (KeyCode::BackTab, KeyModifiers::NONE) => app.jump_settings_section(false),
         (KeyCode::Left, KeyModifiers::NONE) => app.move_cursor_left_settings(),
         (KeyCode::Right, KeyModifiers::NONE) => app.move_cursor_right_settings(),
         (KeyCode::Char(c), KeyModifiers::NONE) | (KeyCode::Char(c), KeyModifiers::SHIFT) => {

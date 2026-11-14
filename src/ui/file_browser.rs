@@ -21,7 +21,7 @@ const PLACES_WIDTH: u16 = 26;
 const SIDEBAR_MIN_WIDTH: u16 = 72;
 const DETAILS_MIN_WIDTH: u16 = 60;
 
-pub fn render_file_browser(f: &mut Frame, browser: &mut FileBrowser, area: Rect) {
+pub fn render_file_browser(f: &mut Frame, browser: &mut FileBrowser, show_hints: bool, area: Rect) {
     let width = area.width.saturating_sub(4).min(MAX_WIDTH);
     let height = area.height.saturating_sub(2).min(MAX_HEIGHT);
     let popup = Rect::new(
@@ -32,8 +32,7 @@ pub fn render_file_browser(f: &mut Frame, browser: &mut FileBrowser, area: Rect)
     );
     f.render_widget(Clear, popup);
 
-    let hints = crate::ui::help::file_browser_hints(popup.width.saturating_sub(4) as usize);
-    let outer = Block::default()
+    let mut outer = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(ACCENT))
@@ -41,8 +40,11 @@ pub fn render_file_browser(f: &mut Frame, browser: &mut FileBrowser, area: Rect)
         .title(Span::styled(
             browser.target.title(),
             Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-        ))
-        .title_bottom(Line::from(padded(hints)).centered());
+        ));
+    if show_hints {
+        let hints = crate::ui::help::file_browser_hints(popup.width.saturating_sub(4) as usize);
+        outer = outer.title_bottom(Line::from(padded(hints)).centered());
+    }
     let inner = outer.inner(popup).inner(Margin::new(1, 0));
     f.render_widget(outer, popup);
 

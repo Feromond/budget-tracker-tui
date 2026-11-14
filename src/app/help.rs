@@ -445,13 +445,19 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             KeyBindingInfo::new("Ctrl+H", "Show Keybindings Help", "System", None),
         ],
         AppMode::Settings => vec![
-            KeyBindingInfo::new("Tab/Shift+Tab/↑↓", "Navigate settings", "Navigation", None),
+            KeyBindingInfo::new("↑↓", "Move between settings", "Navigation", None),
+            KeyBindingInfo::new(
+                "Tab/Shift+Tab",
+                "Next / previous section",
+                "Navigation",
+                None,
+            ),
             KeyBindingInfo::new(
                 "Database Path",
                 "SQLite Database Location",
                 "Fields",
                 Some(
-                    "Path to the SQLite database that stores your transactions and category catalog. Point this at a new file to create a fresh database, or an existing file to load different data. Tip: place it in iCloud Drive, Google Drive, or Dropbox to sync across devices.",
+                    "Choose an existing SQLite database to load it, or a new path to create one. Store it in a synced folder to share it across devices.",
                 ),
             ),
             KeyBindingInfo::new(
@@ -459,78 +465,98 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 "Switch or Manage Ledgers",
                 "Fields",
                 Some(
-                    "Shows the ledger currently open. Press Enter to switch to another ledger, or to add, rename, and delete them. Ledgers are independent sets of transactions inside one database, useful for separate accounts or for forecasting without touching your real data. They all share the same category catalog.",
+                    "Press Enter to switch, add, rename, or delete ledgers. Ledgers have separate transactions and share categories.",
                 ),
             ),
             KeyBindingInfo::new(
-                "Manage Categories",
+                "Accounts",
+                "Manage Accounts",
+                "Fields",
+                Some("Press Enter to add, rename, archive, or delete this ledger's accounts."),
+            ),
+            KeyBindingInfo::new(
+                "Categories",
                 "Open Category Catalog",
                 "Fields",
-                Some("Select this action and press Enter to open the category catalog manager."),
+                Some("Press Enter to manage categories."),
             ),
             KeyBindingInfo::new(
                 "Import Transactions",
                 "Import from CSV",
                 "Fields",
                 Some(
-                    "Press Enter to open a path prompt and import a CSV. New rows are added and exact duplicates are skipped; recurring occurrences are regenerated automatically.",
+                    "Press Enter to import a CSV. Duplicates are skipped and recurring occurrences are regenerated.",
                 ),
             ),
             KeyBindingInfo::new(
                 "Export Transactions",
                 "Export to CSV",
                 "Fields",
+                Some("Press Enter to export this ledger's transactions as CSV."),
+            ),
+            KeyBindingInfo::new(
+                "Automatic Backups",
+                "Toggle Automatic Backups",
+                "Fields",
                 Some(
-                    "Press Enter to open a path prompt and export all transactions to a CSV file you can back up or share.",
+                    "Take daily and pre-upgrade snapshots at startup. Turning this off disables both.",
                 ),
+            ),
+            KeyBindingInfo::new(
+                "Backups to Keep",
+                "Automatic Snapshots Kept",
+                "Fields",
+                Some(
+                    "Automatic snapshots to keep for this install. Shown only when automatic backups are on.",
+                ),
+            ),
+            KeyBindingInfo::new(
+                "Manage Backups",
+                "Open Backup List",
+                "Fields",
+                Some("Press Enter to create, restore, or delete backups."),
             ),
             KeyBindingInfo::new(
                 "Hourly Rate",
                 "Hourly Earning Rate",
                 "Fields",
-                Some(
-                    "Optional. Enter your hourly rate to enable viewing transaction amounts as equivalent hours worked.",
-                ),
+                Some("Enter your hourly rate to see costs in hours, or leave blank."),
             ),
             KeyBindingInfo::new(
-                "Show Hours",
+                "Show Costs in Hours",
                 "Toggle Hours View",
                 "Fields",
-                Some(
-                    "Enable to display transaction amounts in equivalent hours based on your hourly rate.",
-                ),
+                Some("Show amounts as hours worked, based on your hourly rate."),
             ),
             KeyBindingInfo::new(
-                "Fuzzy Search",
+                "Forecast Months Ahead",
+                "Recurring Forecast",
+                "Fields",
+                Some("Months to forecast recurring transactions. 0 stops at today."),
+            ),
+            KeyBindingInfo::new(
+                "Fuzzy Search Categories",
                 "Toggle Fuzzy Search",
                 "Fields",
-                Some(
-                    "Toggle to enable fuzzy searching for categories/subcategories. When enabled, selecting 'Category' opens a search bar to filter both category and subcategory at once.",
-                ),
+                Some("Search categories and subcategories together when choosing a category."),
             ),
             KeyBindingInfo::new(
                 "Hide Help Bar",
                 "Toggle Help Bar",
                 "Fields",
-                Some(
-                    "Toggle to hide the bottom help bar for a cleaner interface. Ctrl+H will still work. NOT RECOMMENDED unless you know the keybindings well.",
-                ),
+                Some("Hide the bottom help bar. Ctrl+H still shows all keybindings."),
             ),
             KeyBindingInfo::new(
                 "←/→",
                 "Toggle Options / Move cursor",
                 "Navigation",
-                Some(
-                    "On toggle settings changes the value (e.g. Yes/No); on path/number fields moves the text cursor.",
-                ),
+                Some("Turn toggles off or on, or move the cursor in text fields."),
             ),
             KeyBindingInfo::new(
                 "Ctrl+D",
                 "Reset Database Path",
                 "Actions",
-                Some(
-                    "On the Database Path field, resets it to the default location for the current data directory.",
-                ),
+                Some("Reset Database Path to its default location."),
             ),
             KeyBindingInfo::new("Ctrl+U", "Clear Field", "Actions", None),
             KeyBindingInfo::new(
@@ -545,9 +571,7 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 "Enter",
                 "Save Settings / Activate Action",
                 "Actions",
-                Some(
-                    "On editable fields saves your settings; on action rows (Manage Categories, Import, Export) opens that action.",
-                ),
+                Some("Save settings, or open the selected action."),
             ),
             KeyBindingInfo::new("Esc", "Cancel / Back", "Actions", None),
             KeyBindingInfo::new("Ctrl+H", "Show Keybindings Help", "System", None),

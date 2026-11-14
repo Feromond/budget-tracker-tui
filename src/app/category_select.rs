@@ -9,7 +9,7 @@ impl App {
         self.cancel_selection();
         self.set_status_message(
             format!(
-                "No {} categories yet. Add some in Settings > Manage Categories.",
+                "No {} categories yet. Add some in Settings > Categories.",
                 transaction_type.as_str().to_lowercase()
             ),
             None,

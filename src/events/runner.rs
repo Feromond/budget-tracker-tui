@@ -8,9 +8,9 @@ use std::time::Duration;
 
 use super::{
     account_manager_mode, add_edit_mode, backup_mode, budget_mode, category_manager_mode,
-    debts_mode, filter_mode, fuzzy_search_mode, help_mode, investments_mode, ledger_manager_mode,
-    normal_mode, recurring_mode, selection_mode, settings_mode, summary_mode, transaction_io_mode,
-    update_mode,
+    debts_mode, file_browser_mode, filter_mode, fuzzy_search_mode, help_mode, investments_mode,
+    ledger_manager_mode, normal_mode, recurring_mode, selection_mode, settings_mode, summary_mode,
+    transaction_io_mode, update_mode,
 };
 
 pub fn run_app<B: Backend>(
@@ -49,17 +49,18 @@ where
                 other => other,
             };
             match event {
-                Event::Paste(text) => app.handle_paste(&text),
+                Event::Paste(text) if app.file_browser.is_none() => app.handle_paste(&text),
                 Event::Key(key)
                     if key.kind == KeyEventKind::Press
                         && (app.show_update_popup
+                                || app.file_browser.is_some()
                                 || key.modifiers == KeyModifiers::NONE
-                                || (app.mode == AppMode::Settings && key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Char('d') | KeyCode::Char('u') | KeyCode::Char('v')))
+                                || (app.mode == AppMode::Settings && key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Char('d') | KeyCode::Char('u') | KeyCode::Char('v') | KeyCode::Char('o')))
                                 // Let Shift+Char pass through for typing capitals/symbols in settings path
                                 || (app.mode == AppMode::Settings && key.modifiers == KeyModifiers::SHIFT && matches!(key.code, KeyCode::Char(_)))
                                 // Import/Export path prompt: allow Shift+Char and Ctrl+D/U
                                 || ((app.mode == AppMode::ImportTransactions || app.mode == AppMode::ExportTransactions) && key.modifiers == KeyModifiers::SHIFT && matches!(key.code, KeyCode::Char(_)))
-                                || ((app.mode == AppMode::ImportTransactions || app.mode == AppMode::ExportTransactions) && key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Char('d') | KeyCode::Char('u') | KeyCode::Char('v')))
+                                || ((app.mode == AppMode::ImportTransactions || app.mode == AppMode::ExportTransactions) && key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Char('d') | KeyCode::Char('u') | KeyCode::Char('v') | KeyCode::Char('o')))
                                 // Allow Shift+Char in Adding, Editing and FuzzyFinding modes
                                 || ((app.mode == AppMode::Adding || app.mode == AppMode::Editing || app.mode == AppMode::FuzzyFinding || app.mode == AppMode::CategoryEditor || app.mode == AppMode::CategoryCatalogFilter || app.mode == AppMode::LedgerEditor || app.mode == AppMode::AccountEditor) && key.modifiers == KeyModifiers::SHIFT && matches!(key.code, KeyCode::Char(_)))
                                 // Allow Shift+Arrow in date-like navigation modes
@@ -132,6 +133,11 @@ fn normalize_key(mut key: KeyEvent) -> KeyEvent {
 fn update(app: &mut App, key_event: KeyEvent) {
     if app.show_update_popup {
         update_mode::handle_update_popup(app, key_event);
+        return;
+    }
+
+    if app.file_browser.is_some() {
+        file_browser_mode::handle_file_browser(app, key_event);
         return;
     }
 

@@ -34,7 +34,7 @@ pub fn render_io_prompt(f: &mut Frame, app: &App, area: Rect) {
         .title(title)
         .title_bottom(
             Line::from(format!(
-                " {}  [Esc] Cancel  [Ctrl+U] Clear  [Ctrl+D] Default ",
+                " {}  [Ctrl+O] Browse  [Esc] Cancel  [Ctrl+U] Clear  [Ctrl+D] Default ",
                 action_hint
             ))
             .centered(),
@@ -56,6 +56,8 @@ pub fn render_io_prompt(f: &mut Frame, app: &App, area: Rect) {
         input_area,
     );
 
-    let visible_cursor = cursor.saturating_sub(scroll_x);
-    f.set_cursor_position(Position::new(input_area.x + visible_cursor, input_area.y));
+    if app.file_browser.is_none() {
+        let visible_cursor = cursor.saturating_sub(scroll_x);
+        f.set_cursor_position(Position::new(input_area.x + visible_cursor, input_area.y));
+    }
 }

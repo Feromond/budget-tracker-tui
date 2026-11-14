@@ -534,6 +534,14 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
             ),
             KeyBindingInfo::new("Ctrl+U", "Clear Field", "Actions", None),
             KeyBindingInfo::new(
+                "Ctrl+O",
+                "Browse for Database",
+                "Actions",
+                Some(
+                    "Browse from the Database Path field. Tab switches to Places for folder and drive shortcuts. ↑↓ moves; Enter opens or chooses; → opens a folder; ←/Backspace goes up. . toggles hidden files, ~ goes home, and typing jumps to a name. Esc cancels. Use this folder keeps the filename.",
+                ),
+            ),
+            KeyBindingInfo::new(
                 "Enter",
                 "Save Settings / Activate Action",
                 "Actions",
@@ -1126,11 +1134,19 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 "Any Char",
                 "Type the file path",
                 "Input",
-                Some("Type or paste an absolute path to the CSV file."),
+                Some("Type or paste the path to the CSV file. A leading ~ means your home folder."),
             ),
             KeyBindingInfo::new("←/→", "Move cursor", "Navigation", None),
             KeyBindingInfo::new("Ctrl+U", "Clear path", "Actions", None),
             KeyBindingInfo::new("Ctrl+D", "Reset to default location", "Actions", None),
+            KeyBindingInfo::new(
+                "Ctrl+O",
+                "Browse for a file",
+                "Actions",
+                Some(
+                    "Tab switches to Places for folder and drive shortcuts. ↑↓ moves; Enter opens or chooses; → opens a folder; ←/Backspace goes up. . toggles hidden files, ~ goes home, and typing jumps to a name. Esc cancels.",
+                ),
+            ),
             KeyBindingInfo::new("Enter", "Confirm import/export", "Actions", None),
             KeyBindingInfo::new("Esc", "Cancel / back to Settings", "Actions", None),
             KeyBindingInfo::new("Ctrl+H", "Show Keybindings Help", "System", None),

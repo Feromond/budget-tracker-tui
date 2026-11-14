@@ -1,3 +1,4 @@
+use crate::app::file_browser::BrowseTarget;
 use crate::app::settings_types::SettingKey;
 use crate::app::state::App;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -17,6 +18,16 @@ pub fn handle_settings_mode(app: &mut App, key_event: KeyEvent) {
             }
         }
         (KeyCode::Char('u'), KeyModifiers::CONTROL) => app.clear_settings_field(),
+        (KeyCode::Char('o'), KeyModifiers::CONTROL) => {
+            let selected_key = app
+                .settings_state
+                .items
+                .get(app.settings_state.selected_index)
+                .map(|item| item.key);
+            if selected_key == Some(SettingKey::DatabasePath) {
+                app.open_file_browser(BrowseTarget::DatabasePath);
+            }
+        }
         (KeyCode::Tab, KeyModifiers::NONE) | (KeyCode::Down, KeyModifiers::NONE) => {
             app.next_settings_field()
         }

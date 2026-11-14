@@ -5,6 +5,7 @@ pub mod category_manager;
 pub mod category_summary;
 pub mod debts;
 pub mod dialog;
+pub mod file_browser;
 pub mod filter;
 pub mod form;
 pub mod fuzzy_search;
@@ -274,6 +275,10 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             dialog::render_selection_popup(f, app, main_area);
         }
         _ => {}
+    }
+
+    if let Some(browser) = app.file_browser.as_mut() {
+        file_browser::render_file_browser(f, browser, main_area);
     }
 
     if render_mode == AppMode::Filtering {

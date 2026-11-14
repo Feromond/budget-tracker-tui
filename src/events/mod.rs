@@ -4,6 +4,7 @@ mod backup_mode;
 mod budget_mode;
 mod category_manager_mode;
 mod debts_mode;
+mod file_browser_mode;
 mod filter_mode;
 mod fuzzy_search_mode;
 mod help_mode;

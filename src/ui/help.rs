@@ -79,9 +79,74 @@ fn fit_hints(hints: &[Hint], width: usize) -> Vec<Span<'static>> {
     }
 }
 
-pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
-    let width = area.width.saturating_sub(2) as usize;
-    let help_spans = match app.mode {
+pub(crate) fn file_browser_hints(width: usize) -> Vec<Span<'static>> {
+    fit_hints(
+        &[
+            Hint::new("↑↓", "Nav", "Nav", Color::White, 3),
+            Hint::new("Enter", "Open/Choose", "Open", Color::LightGreen, 0),
+            Hint::new("←/Bksp", "Up a folder", "Up", Color::LightCyan, 0),
+            Hint::new("→", "Open folder", "In", Color::LightCyan, 4),
+            Hint::new("Tab", "Places", "Places", Color::LightYellow, 1),
+            Hint::new("~", "Home", "Home", Color::LightMagenta, 2),
+            Hint::new(".", "Hidden files", "Hid", Color::LightMagenta, 2),
+            Hint::new("Type", "Jump to name", "Jump", Color::White, 5),
+            Hint::new("Esc", "Cancel", "Cancel", Color::LightRed, 0),
+        ],
+        width,
+    )
+}
+
+fn settings_hints(app: &App, width: usize) -> Vec<Span<'static>> {
+    use crate::app::settings_types::{SettingKey, SettingType};
+    let item = app
+        .settings_state
+        .items
+        .get(app.settings_state.selected_index);
+    let mut hints = vec![Hint::new("Tab/↑↓", "Nav", "Nav", Color::LightYellow, 3)];
+    match item.map(|item| (item.key, &item.setting_type)) {
+        Some((key, SettingType::Path)) => {
+            hints.push(Hint::new("←/→", "Cursor", "Cur", Color::LightCyan, 4));
+            hints.push(Hint::new("Enter", "Save", "Save", Color::LightGreen, 0));
+            if key == SettingKey::DatabasePath {
+                hints.push(Hint::new(
+                    "Ctrl+O",
+                    "Browse",
+                    "Browse",
+                    Color::LightMagenta,
+                    1,
+                ));
+                hints.push(Hint::new(
+                    "Ctrl+D",
+                    "Default",
+                    "Dflt",
+                    Color::LightMagenta,
+                    2,
+                ));
+            }
+            hints.push(Hint::new("Ctrl+U", "Clear", "Clr", Color::LightMagenta, 2));
+        }
+        Some((_, SettingType::Number | SettingType::Integer)) => {
+            hints.push(Hint::new("←/→", "Cursor", "Cur", Color::LightCyan, 4));
+            hints.push(Hint::new("Enter", "Save", "Save", Color::LightGreen, 0));
+            hints.push(Hint::new("Ctrl+U", "Clear", "Clr", Color::LightMagenta, 2));
+        }
+        Some((_, SettingType::Toggle)) => {
+            hints.push(Hint::new("←/→", "Toggle", "Tgl", Color::LightCyan, 1));
+            hints.push(Hint::new("Enter", "Save", "Save", Color::LightGreen, 0));
+        }
+        Some((_, SettingType::Action)) => {
+            hints.push(Hint::new("Enter", "Open", "Open", Color::LightGreen, 0));
+        }
+        Some((_, SettingType::SectionHeader)) | None => {
+            hints.push(Hint::new("Enter", "Save", "Save", Color::LightGreen, 0));
+        }
+    }
+    hints.push(Hint::new("Esc", "Cancel", "Esc", Color::LightRed, 0));
+    fit_hints(&hints, width)
+}
+
+fn mode_hints(app: &App, width: usize) -> Vec<Span<'_>> {
+    match app.mode {
         AppMode::Normal => fit_hints(
             &[
                 Hint::new("↑↓", "Nav", "Nav", Color::White, 6),
@@ -267,30 +332,7 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
             Span::styled("Esc", Style::default().fg(Color::LightRed)),
             Span::raw(" Cancel"),
         ],
-        AppMode::Settings => vec![
-            Span::styled(
-                "Tab/↑↓",
-                Style::default()
-                    .fg(Color::LightYellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(": Nav | "),
-            Span::styled(
-                "←/→",
-                Style::default()
-                    .fg(Color::LightCyan)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(": Cursor | "),
-            Span::styled("Enter", Style::default().fg(Color::LightGreen)),
-            Span::raw(": Save | "),
-            Span::styled("Esc", Style::default().fg(Color::LightRed)),
-            Span::raw(": Cancel | "),
-            Span::styled("Ctrl+D", Style::default().fg(Color::LightMagenta)),
-            Span::raw(": Reset | "),
-            Span::styled("Ctrl+U", Style::default().fg(Color::LightMagenta)),
-            Span::raw(": Clear"),
-        ],
+        AppMode::Settings => settings_hints(app, width),
         AppMode::CategoryCatalog => {
             let mut spans = vec![
                 Span::raw("↑↓ Nav | "),
@@ -541,9 +583,20 @@ pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
             Span::raw(" Default | "),
             Span::styled("Enter", Style::default().fg(Color::LightGreen)),
             Span::raw(" Confirm | "),
+            Span::styled("Ctrl+O", Style::default().fg(Color::LightMagenta)),
+            Span::raw(" Browse | "),
             Span::styled("Esc", Style::default().fg(Color::LightRed)),
             Span::raw(" Back"),
         ],
+    }
+}
+
+pub fn render_help_bar(f: &mut Frame, app: &App, area: Rect) {
+    let width = area.width.saturating_sub(2) as usize;
+    let help_spans = if app.file_browser.is_some() {
+        file_browser_hints(width)
+    } else {
+        mode_hints(app, width)
     };
 
     let help_paragraph = Paragraph::new(Line::from(help_spans))

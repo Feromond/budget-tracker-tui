@@ -165,3 +165,39 @@ pub fn cursor_column(text: &str, cursor: usize) -> u16 {
 pub fn scroll_to_show(column: u16, width: u16) -> u16 {
     column.saturating_sub(width.saturating_sub(1))
 }
+
+pub fn format_size(bytes: u64) -> String {
+    const KIB: f64 = 1024.0;
+    let bytes = bytes as f64;
+    if bytes < KIB {
+        format!("{} B", bytes as u64)
+    } else if bytes < KIB * KIB {
+        format!("{:.1} KB", bytes / KIB)
+    } else {
+        format!("{:.1} MB", bytes / (KIB * KIB))
+    }
+}
+
+pub fn keep_end(text: &str, width: usize) -> String {
+    let count = text.chars().count();
+    if count <= width || width < 2 {
+        return text.to_string();
+    }
+    let kept: String = text.chars().skip(count - (width - 1)).collect();
+    format!("…{kept}")
+}
+
+pub fn home_relative(path: &std::path::Path) -> Option<std::path::PathBuf> {
+    let home = dirs::home_dir()?;
+    path.strip_prefix(home)
+        .ok()
+        .map(std::path::Path::to_path_buf)
+}
+
+pub fn tilde_path(path: &std::path::Path) -> String {
+    match home_relative(path) {
+        Some(rest) if rest.as_os_str().is_empty() => "~".to_string(),
+        Some(rest) => format!("~{}{}", std::path::MAIN_SEPARATOR, rest.display()),
+        None => path.display().to_string(),
+    }
+}

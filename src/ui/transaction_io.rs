@@ -34,7 +34,7 @@ pub fn render_io_prompt(f: &mut Frame, app: &App, area: Rect) {
         .title(title)
         .title_bottom(
             Line::from(format!(
-                " {}  [Ctrl+O] Browse  [Esc] Cancel  [Ctrl+U] Clear  [Ctrl+D] Default ",
+                " {}  [Esc] Cancel  [Ctrl+U] Clear  [Ctrl+D] Default ",
                 action_hint
             ))
             .centered(),
@@ -46,6 +46,10 @@ pub fn render_io_prompt(f: &mut Frame, app: &App, area: Rect) {
         Paragraph::new(Span::styled(label, Style::default().fg(Color::Gray))),
         label_area,
     );
+    let browse = crate::ui::helpers::key_chip("Ctrl+O", "Browse files", true);
+    if label_area.width as usize >= label.len() + browse.width() + 2 {
+        f.render_widget(Paragraph::new(browse).right_aligned(), label_area);
+    }
 
     let input_area = Rect::new(popup.x + 2, popup.y + 2, popup.width.saturating_sub(4), 1);
     let input_width = input_area.width.max(1);

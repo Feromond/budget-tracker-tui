@@ -38,6 +38,12 @@ pub struct SettingItem {
     pub help: String,
 }
 
+impl SettingItem {
+    pub fn is_on(&self) -> bool {
+        self.value == crate::app::settings::toggle_value(true)
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct SettingsState {
     pub items: Vec<SettingItem>,
@@ -72,14 +78,34 @@ impl SettingsState {
         });
     }
 
-    pub fn add_header(&mut self, label: &str) {
+    pub fn add_header(&mut self, label: &str, subtitle: &str) {
         self.add_setting(
             SettingKey::Section,
             label,
             String::new(),
             SettingType::SectionHeader,
-            "",
+            subtitle,
         );
+    }
+
+    /// Each header index and the range of rows below it.
+    pub fn sections(&self) -> Vec<(usize, std::ops::Range<usize>)> {
+        let mut sections: Vec<(usize, std::ops::Range<usize>)> = Vec::new();
+        for (index, item) in self.items.iter().enumerate() {
+            if item.setting_type == SettingType::SectionHeader {
+                sections.push((index, index + 1..index + 1));
+            } else if let Some((_, rows)) = sections.last_mut() {
+                rows.end = index + 1;
+            }
+        }
+        sections
+    }
+
+    pub fn is_on(&self, key: SettingKey) -> Option<bool> {
+        self.items
+            .iter()
+            .find(|item| item.key == key)
+            .map(SettingItem::is_on)
     }
 
     pub fn get_value(&self, key: SettingKey) -> Option<&String> {

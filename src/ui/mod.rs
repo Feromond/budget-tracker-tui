@@ -277,8 +277,9 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
         _ => {}
     }
 
+    let show_browser_hints = app.hide_help_bar;
     if let Some(browser) = app.file_browser.as_mut() {
-        file_browser::render_file_browser(f, browser, main_area);
+        file_browser::render_file_browser(f, browser, show_browser_hints, main_area);
     }
 
     if render_mode == AppMode::Filtering {
@@ -309,7 +310,7 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
 
     summary::render_summary_bar(f, app, summary_area, year_filter);
 
-    if !app.hide_help_bar {
+    if help_bar_height > 0 {
         help::render_help_bar(f, app, help_area);
     }
 

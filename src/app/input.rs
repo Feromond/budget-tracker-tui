@@ -283,6 +283,29 @@ impl App {
         }
     }
 
+    pub(crate) fn jump_settings_section(&mut self, forward: bool) {
+        self.strip_quotes_from_current_setting();
+        let sections = self.settings_state.sections();
+        if sections.is_empty() {
+            return;
+        }
+        let selected = self.settings_state.selected_index;
+        let current = sections
+            .iter()
+            .position(|(_, rows)| rows.contains(&selected))
+            .unwrap_or(0);
+        let target = if forward {
+            (current + 1) % sections.len()
+        } else {
+            (current + sections.len() - 1) % sections.len()
+        };
+        let (_, rows) = &sections[target];
+        if !rows.is_empty() {
+            self.settings_state.selected_index = rows.start;
+            self.settings_state.edit_cursor = self.settings_state.items[rows.start].value.len();
+        }
+    }
+
     pub(crate) fn move_cursor_left_settings(&mut self) {
         if self.set_settings_toggle(false) {
             return;

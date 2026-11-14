@@ -195,6 +195,7 @@ pub fn render_settings_form(f: &mut Frame, app: &App, area: Rect) {
 
             // Cursor
             if is_focused
+                && app.file_browser.is_none()
                 && item.setting_type != crate::app::settings_types::SettingType::Toggle
                 && item.setting_type != crate::app::settings_types::SettingType::Action
             {

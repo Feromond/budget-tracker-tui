@@ -39,7 +39,7 @@ pub fn render_backup_manager(f: &mut Frame, app: &mut App, area: Rect) {
         Row::new(vec![
             Cell::from(entry.taken_at.format("%Y-%m-%d %H:%M").to_string()),
             Cell::from(entry.kind.label()),
-            Cell::from(format_size(entry.size_bytes)),
+            Cell::from(crate::ui::helpers::format_size(entry.size_bytes)),
             Cell::from(
                 entry
                     .schema_version
@@ -74,17 +74,5 @@ fn device_label(entry: &BackupEntry) -> String {
         "This device".to_string()
     } else {
         format!("Other ({})", entry.instance)
-    }
-}
-
-fn format_size(bytes: u64) -> String {
-    const KIB: f64 = 1024.0;
-    let bytes = bytes as f64;
-    if bytes < KIB {
-        format!("{} B", bytes as u64)
-    } else if bytes < KIB * KIB {
-        format!("{:.1} KB", bytes / KIB)
-    } else {
-        format!("{:.1} MB", bytes / (KIB * KIB))
     }
 }

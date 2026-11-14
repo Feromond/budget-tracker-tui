@@ -2020,6 +2020,37 @@ mod tests {
     }
 
     #[test]
+    fn the_file_browser_picks_the_file_a_path_points_to() {
+        use crate::app::file_browser::{BrowseTarget, FileBrowser};
+        let temp = TempDb::new();
+        let root = temp.path.with_extension("browse");
+        std::fs::create_dir_all(root.join("Alpha")).unwrap();
+        std::fs::write(root.join("b.csv"), "").unwrap();
+
+        let dotted = root.join("Alpha").join("..").join("b.csv");
+        let browser = FileBrowser::open(BrowseTarget::Import, &dotted.to_string_lossy());
+        assert_eq!(browser.current, Some(root.join("b.csv")));
+
+        #[cfg(unix)]
+        {
+            let inner = root.join("Alpha").join("inner");
+            std::fs::create_dir(&inner).unwrap();
+            std::os::unix::fs::symlink(&inner, root.join("link")).unwrap();
+            std::fs::write(root.join("Alpha").join("pick.csv"), "").unwrap();
+            let through = root.join("link").join("..").join("pick.csv");
+            let browser = FileBrowser::open(BrowseTarget::Import, &through.to_string_lossy());
+            let alpha = std::fs::canonicalize(root.join("Alpha")).unwrap();
+            assert_eq!(browser.current, Some(alpha.join("pick.csv")));
+        }
+
+        let field = root.join("report.csv");
+        let mut browser = FileBrowser::open(BrowseTarget::Export, &field.to_string_lossy());
+        assert_eq!(browser.activate(), Some(field));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn importing_a_csv_drops_generated_rows() {
         let temp = TempDb::new();
         let csv_path = temp.path.with_extension("csv");

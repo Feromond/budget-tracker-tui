@@ -36,6 +36,11 @@ impl TypeToSelect {
         self.last_type_time = None;
     }
 
+    pub fn is_typing(&self) -> bool {
+        self.last_type_time
+            .is_some_and(|last| last.elapsed() <= self.timeout)
+    }
+
     pub fn handle_char<T, F>(&mut self, c: char, items: &[T], extractor: F) -> Option<usize>
     where
         F: Fn(&T) -> &str,

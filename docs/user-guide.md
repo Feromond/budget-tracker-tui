@@ -589,6 +589,8 @@ The copy has its own transactions and budgets, but still shares the category cat
 
 Type or paste the path. `Ctrl+U` clears it, `Ctrl+D` restores the default, and `Esc` returns to Settings. Use `~` for your home folder. Relative paths start from the folder where you launched the app. Environment variables aren't expanded.
 
+Press `Ctrl+O` to browse folders and CSV files. `Tab` switches to *Places* for shortcuts to common folders, cloud folders, and drives. `Enter` opens a folder or fills the prompt with a file path you can edit or confirm. `←` or `Backspace` goes up a folder, `.` toggles hidden files, `~` goes home, and typing jumps to a name. `Esc` closes the browser and leaves the path unchanged.
+
 Import matches rows by date, description, amount, type, category, subcategory, and accounts. Each existing transaction skips one matching CSV row; extra copies are added. For example, two identical coffee purchases are both kept if neither is in the ledger. Matches aren't updated, even if recurrence differs. Amounts like `10` and `10.00` count as equal.
 
 Generated recurring rows are skipped after parsing, since the app generates them from the original transactions. A parsing error or an invalid account on a row being imported stops the import before any rows are added. A successful import clears the text and advanced filters and returns to the main view. The account you're viewing stays selected.
@@ -597,7 +599,7 @@ Generated recurring rows are skipped after parsing, since the app generates them
 
 1. Switch to the ledger you want to export.
 2. Open Settings, select *Export Transactions (CSV)*, and press `Enter`.
-3. Type or paste the full destination path, including the CSV filename, and press `Enter` to export. The path controls are the same as for import.
+3. Type or paste the full destination path, including the CSV filename, and press `Enter` to export. The path controls are the same as for import. In the browser, choose *Save here as* to keep the filename from the prompt, or pick a CSV to replace.
 
 The export contains all transactions in the open ledger, regardless of the active filter, including generated occurrences through the current forecast horizon.
 
@@ -695,7 +697,7 @@ Transactions, accounts, categories, and investment entries are stored together i
 - **macOS:** `~/Library/Application Support/BudgetTracker/budget.db`
 - **Windows:** `%APPDATA%\BudgetTracker\budget.db`
 
-Check *Database Path* in Settings for the location. Older setups may store it beside a previously configured CSV file. Include a filename; any name works. Use `~` for your home folder. Relative paths are saved as full paths from the folder where you launched the app.
+Check *Database Path* in Settings for the location. Older setups may store it beside a previously configured CSV file. Include a filename; any name works. Use `~` for your home folder. Relative paths are saved as full paths from the folder where you launched the app. Press `Ctrl+O` to browse `.db`, `.sqlite`, or `.sqlite3` files. Choose *Use this folder* to keep the filename in a different folder.
 
 Saving a new path copies the database there if the file doesn't exist. Otherwise, the app switches to that database without merging. If it needs upgrading and backups are enabled, the app backs it up first. The original stays in place.
 

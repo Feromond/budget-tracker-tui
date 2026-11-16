@@ -152,20 +152,29 @@ impl App {
                 selected_value.as_str()
             };
             self.add_edit_fields[field] = value_to_set.to_string();
-            if field == AddEditField::Category {
-                self.add_edit_fields.focus(AddEditField::Subcategory);
-                self.start_subcategory_selection();
-                return;
-            } else if field == AddEditField::Subcategory
-                && self.add_edit_type() == TransactionType::Transfer
-                && self.add_edit_fields[AddEditField::ToAccount].is_empty()
-            {
-                self.add_edit_fields.focus(AddEditField::ToAccount);
-                self.start_account_selection(AddEditField::ToAccount);
-                return;
-            } else if field == AddEditField::Subcategory {
-                self.add_edit_fields.focus(AddEditField::Date);
-                self.add_edit_cursor = self.add_edit_fields[AddEditField::Date].len();
+            match field {
+                AddEditField::Category => {
+                    self.add_edit_fields.focus(AddEditField::Subcategory);
+                    self.start_subcategory_selection();
+                    return;
+                }
+                AddEditField::Subcategory | AddEditField::Account
+                    if self.add_edit_type() == TransactionType::Transfer
+                        && self.add_edit_fields[AddEditField::ToAccount].is_empty() =>
+                {
+                    self.add_edit_fields.focus(AddEditField::ToAccount);
+                    self.start_account_selection(AddEditField::ToAccount);
+                    if self.selecting_field
+                        == Some(SelectingField::AddEdit(AddEditField::ToAccount))
+                    {
+                        return;
+                    }
+                }
+                AddEditField::Subcategory | AddEditField::Account | AddEditField::ToAccount => {
+                    self.add_edit_fields.focus(AddEditField::Date);
+                    self.add_edit_cursor = self.add_edit_fields[AddEditField::Date].len();
+                }
+                _ => {}
             }
         }
         self.mode = if self.editing_index.is_some() {

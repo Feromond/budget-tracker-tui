@@ -36,7 +36,6 @@ pub fn render_file_browser(f: &mut Frame, browser: &mut FileBrowser, show_hints:
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(ACCENT))
-        .style(Style::default().bg(Color::Black))
         .title(Span::styled(
             browser.target.title(),
             Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),

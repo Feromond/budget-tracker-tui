@@ -102,7 +102,6 @@ fn render_settings(
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(ACCENT))
-        .style(Style::default().bg(Color::Black))
         .title(Span::styled(
             " Settings ",
             Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),

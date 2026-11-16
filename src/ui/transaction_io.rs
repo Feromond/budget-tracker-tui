@@ -30,7 +30,6 @@ pub fn render_io_prompt(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Yellow))
-        .style(Style::default().bg(Color::Black))
         .title(title)
         .title_bottom(
             Line::from(format!(

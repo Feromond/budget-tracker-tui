@@ -1,7 +1,7 @@
 use super::state::{App, AppMode};
 use crate::csv_io::{load_transactions, save_transactions};
 use crate::db::transaction_store::TransactionStore;
-use crate::model::Transaction;
+use crate::model::{SortColumn, SortOrder, Transaction};
 use chrono::Duration;
 use std::path::{Path, PathBuf};
 
@@ -129,9 +129,14 @@ impl App {
             return;
         }
 
-        // Export the materialized view (real rows plus generated occurrences) for a complete CSV.
-        let rows: Vec<_> = self
-            .transactions
+        // Export oldest first so a later import preserves entry order.
+        let mut chronological = self.transactions.clone();
+        crate::app::util::sort_transactions_impl(
+            &mut chronological,
+            SortColumn::Date,
+            SortOrder::Ascending,
+        );
+        let rows: Vec<_> = chronological
             .iter()
             .map(|tx| self.accounts.csv_row(tx))
             .collect();

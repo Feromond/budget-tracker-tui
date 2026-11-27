@@ -330,14 +330,17 @@ impl App {
         // Set before reloading so occurrences are re-derived against the new horizon.
         self.recurring_forecast_months = forecast_months;
 
-        // Point at the new database and reload everything from it. The ledgers are
-        // re-resolved first because the previous active id belongs to the old file.
+        let switched = self.database_path != new_database_path;
         self.database_path = new_database_path.clone();
         self.clear_all_filter_fields();
-        if let Err(e) = self
+        let reloaded = self
             .refresh_ledgers()
-            .and_then(|_| self.reload_working_set())
-        {
+            .and_then(|_| self.reload_working_set());
+        // The path has changed even if the reload failed.
+        if switched {
+            self.reset_undo_history();
+        }
+        if let Err(e) = reloaded {
             self.set_status_message(
                 format!(
                     "Error loading '{}': {}. Check database path and permissions.",

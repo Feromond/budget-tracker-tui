@@ -416,7 +416,7 @@ impl App {
             .and_then(|&record_index| self.category_records.get(record_index))
     }
 
-    fn clamp_category_catalog_selection(&mut self) {
+    pub(crate) fn clamp_category_catalog_selection(&mut self) {
         let selection = if self.filtered_category_indices.is_empty() {
             None
         } else {

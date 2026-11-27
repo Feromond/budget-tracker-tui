@@ -64,7 +64,7 @@ impl App {
             .filter(|account| account.class == AccountClass::Credit)
     }
 
-    fn clamp_debt_selection(&mut self) {
+    pub(crate) fn clamp_debt_selection(&mut self) {
         let len = self.visible_debt_ids().len();
         let index = self.debt_table_state.selected().unwrap_or(0);
         self.debt_table_state

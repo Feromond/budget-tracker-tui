@@ -22,6 +22,7 @@ where
 {
     // A draw builds a row per filtered transaction, so idle repaints get expensive on big ledgers.
     let mut needs_redraw = true;
+    app.reset_undo_history();
 
     while !app.should_quit {
         // Check for status expiry
@@ -79,8 +80,7 @@ where
                                 || (app.mode == AppMode::LedgerManager && key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('c'))
                                 // Allow Ctrl+Up/Down for jump navigation in the category catalog
                                 || (app.mode == AppMode::CategoryCatalog && key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Up | KeyCode::Down))
-                                // Allow Ctrl+H for Help Toggle
-                                || (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('h'))) =>
+                                || (key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Char('h') | KeyCode::Char('z') | KeyCode::Char('y')))) =>
                 {
                     if app.mode != AppMode::ConfirmDelete
                         && app.mode != AppMode::SelectingCategory
@@ -89,7 +89,9 @@ where
                     {
                         app.clear_status_message();
                     }
+                    app.undo_history.key_mode = Some(app.mode);
                     update(app, key);
+                    app.record_undo_step();
                 }
                 _ => {}
             }
@@ -153,6 +155,14 @@ fn update(app: &mut App, key_event: KeyEvent) {
             app.type_to_select.clear();
         }
         return;
+    }
+
+    if key_event.modifiers == KeyModifiers::CONTROL {
+        match key_event.code {
+            KeyCode::Char('z') => return app.undo(),
+            KeyCode::Char('y') => return app.redo(),
+            _ => {}
+        }
     }
 
     match app.mode {

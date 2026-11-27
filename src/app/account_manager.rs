@@ -41,7 +41,7 @@ impl App {
         }
     }
 
-    fn clamp_account_selection(&mut self) {
+    pub(crate) fn clamp_account_selection(&mut self) {
         let len = self.accounts.all().len();
         let index = self.account_table_state.selected().unwrap_or(0);
         self.account_table_state

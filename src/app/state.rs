@@ -215,6 +215,7 @@ pub struct App {
     pub(crate) backups_enabled: bool,
     pub(crate) backup_keep: u32,
     pub(crate) backup_instance_id: String,
+    pub(crate) undo_history: crate::app::undo::UndoHistory,
     pub(crate) accounts: Accounts,
     pub(crate) account_scope: Option<i64>,
     pub(crate) account_manager_origin: AppMode,
@@ -517,6 +518,7 @@ impl App {
             backups_enabled,
             backup_keep,
             backup_instance_id,
+            undo_history: Default::default(),
             accounts: Accounts::default(),
             account_scope: None,
             account_manager_origin: AppMode::Settings,
@@ -891,8 +893,11 @@ impl App {
     /// cleared because they were written against a different set of transactions.
     pub(crate) fn switch_ledger(&mut self, ledger_id: i64) -> Result<(), Error> {
         if ledger_id != self.active_ledger_id {
+            // Keep ledger creation undoable without recording the switch itself.
+            self.record_undo_step();
             self.ledger_store().set_active_id(ledger_id)?;
             self.active_ledger_id = ledger_id;
+            self.refresh_undo_baseline();
         }
         self.clear_all_filter_fields();
         self.reload_working_set()

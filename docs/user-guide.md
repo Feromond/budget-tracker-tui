@@ -14,6 +14,7 @@ The companion to the [README](../README.md), with the longer explanations that d
 - [Pay off a card or contribute to an investment](#record-a-transfer)
 - [Create a what-if ledger](#create-a-what-if-ledger)
 - [Import or export transactions](#import-and-export)
+- [Undo a mistake](#undo-and-redo)
 - [Find your database or back up your data](#data-storage-and-backups)
 
 ## Contents
@@ -32,6 +33,7 @@ The companion to the [README](../README.md), with the longer explanations that d
 - [Ledgers](#ledgers)
 - [Import and export](#import-and-export)
 - [Settings](#settings)
+- [Undo and redo](#undo-and-redo)
 - [Backups](#backups)
 - [Data storage and backups](#data-storage-and-backups)
 - [Updating](#updating)
@@ -52,6 +54,7 @@ These are the keys for the main view. Some do different things in other views.
 | Add / edit / delete a transaction | `a` / `e` / `d` (delete asks for `y`/`n` confirmation) |
 | Create a one-time copy dated today | `Ctrl+C` |
 | Reverse the selected transfer | `Ctrl+R` |
+| [Undo / redo](#undo-and-redo) the last change | `Ctrl+Z` / `Ctrl+Y` |
 | Open the quick / advanced filter | `f` / `Ctrl+F` |
 | Open recurring settings for the selected transaction | `r` |
 | Open monthly summary / category summary / budgets | `s` / `c` / `b` |
@@ -649,6 +652,21 @@ On a preference, `Enter` saves and returns to the main view. On an action (Ledge
 - *Forecast Months Ahead*: months to forecast recurring transactions (0-60). `0` stops at today.
 - *Fuzzy Search Categories*: opens a searchable `Category > Subcategory` list in the transaction form. Search matches text within names, ignoring case but not typos. It doesn't affect the separate Subcategory or advanced-filter pickers.
 - *Hide Help Bar*: hides the bottom help bar if you want the extra screen space (`Ctrl+H` still works).
+
+## Undo and redo
+
+From the main view or a list, press `Ctrl+Z` to undo your last saved change or `Ctrl+Y` to redo it.
+Close any form or prompt first. This works for transaction edits, imports, budgets, categories,
+accounts, investments, debts, and ledgers.
+
+The status bar tells you what changed and names the ledger if the change happened elsewhere.
+Your current ledger stays open unless the change removes it.
+
+The app remembers up to 50 changes. Quitting, switching database files, or restoring a
+[backup](#backups) clears your history. Use a backup to go further back.
+
+If you open the same database in two app windows, undoing a change in one can roll back edits
+from the other.
 
 ## Backups
 

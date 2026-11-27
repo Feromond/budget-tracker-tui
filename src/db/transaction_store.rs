@@ -603,15 +603,27 @@ mod tests {
         backup::restore(&temp.path, &safety, "device-a").unwrap();
         assert_eq!(store.list().unwrap().len(), 2);
 
+        #[cfg(unix)]
+        {
+            let link = temp.path.with_extension("link.db");
+            std::os::unix::fs::symlink(&temp.path, &link).unwrap();
+            let restored = backup::restore(&link, &snapshot.path, "device-a");
+            let still_linked = std::fs::symlink_metadata(&link)
+                .map(|meta| meta.file_type().is_symlink())
+                .unwrap_or(false);
+            let _ = std::fs::remove_file(&link);
+            let _ = std::fs::remove_dir_all(backup::backups_dir(&link));
+            restored.unwrap();
+            assert!(still_linked);
+            assert_eq!(store.list().unwrap().len(), 1);
+            backup::restore(&temp.path, &safety, "device-a").unwrap();
+        }
+
         std::fs::write(&temp.path, b"not a database").unwrap();
         let safety = backup::restore(&temp.path, &snapshot.path, "device-a").unwrap();
         assert_eq!(std::fs::read(safety.unwrap()).unwrap(), b"not a database");
         assert_eq!(store.list().unwrap().len(), 1);
-        assert!(
-            !backup::backups_dir(&temp.path)
-                .join("restore.db.partial")
-                .exists()
-        );
+        assert!(!temp.path.with_extension("db.partial").exists());
     }
 
     #[test]

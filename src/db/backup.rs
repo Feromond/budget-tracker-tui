@@ -358,22 +358,21 @@ pub fn change_counter(database_path: &Path) -> Option<[u8; 4]> {
     header[24..28].try_into().ok()
 }
 
+fn copy_into(source: &Path, database_path: &Path) -> rusqlite::Result<()> {
+    rusqlite::Connection::open(source)?.backup(
+        rusqlite::MAIN_DB,
+        database_path,
+        None::<fn(rusqlite::backup::Progress)>,
+    )
+}
+
 /// Restores a snapshot in place to preserve permissions and symlinks.
 pub fn overwrite(database_path: &Path, bytes: &[u8]) -> Result<()> {
     let dir = backups_dir(database_path);
     fs::create_dir_all(&dir)?;
     let staged = dir.join(format!("undo.{}{}", EXTENSION, PARTIAL_SUFFIX));
-    let copied = fs::write(&staged, bytes).and_then(|_| {
-        rusqlite::Connection::open(&staged)
-            .and_then(|source| {
-                source.backup(
-                    rusqlite::MAIN_DB,
-                    database_path,
-                    None::<fn(rusqlite::backup::Progress)>,
-                )
-            })
-            .map_err(Error::other)
-    });
+    let copied = fs::write(&staged, bytes)
+        .and_then(|_| copy_into(&staged, database_path).map_err(Error::other));
     let _ = fs::remove_file(&staged);
     copied
 }
@@ -405,11 +404,26 @@ pub fn restore(
         ))
     };
 
-    // Stage on the same disk for rename; backup pruning clears leftovers.
-    let dir = backups_dir(database_path);
-    fs::create_dir_all(&dir).map_err(failed)?;
-    let staged = dir.join(format!("restore.{}{}", EXTENSION, PARTIAL_SUFFIX));
-    let swapped = fs::copy(backup_path, &staged).and_then(|_| fs::rename(&staged, database_path));
+    match copy_into(backup_path, database_path) {
+        Ok(()) => return Ok(safety),
+        Err(err) if is_busy(&err) => {
+            // Replacing the file here would bypass SQLite's lock.
+            if let Some(path) = &safety {
+                let _ = fs::remove_file(path);
+            }
+            return Err(Error::other(format!(
+                "Failed to restore '{}': {}. Close other copies of the app and try again.",
+                backup_path.display(),
+                err
+            )));
+        }
+        Err(_) => {}
+    }
+
+    // Stage beside the real file to preserve symlinks and keep the rename on one disk.
+    let target = fs::canonicalize(database_path).unwrap_or_else(|_| database_path.to_path_buf());
+    let staged = with_partial_suffix(&target);
+    let swapped = fs::copy(backup_path, &staged).and_then(|_| fs::rename(&staged, &target));
     if let Err(err) = swapped {
         let _ = fs::remove_file(&staged);
         return Err(failed(err));
@@ -417,9 +431,16 @@ pub fn restore(
 
     // Don't let old journals affect the restored database.
     for suffix in ["-wal", "-shm", "-journal"] {
-        let mut sidecar = database_path.as_os_str().to_os_string();
+        let mut sidecar = target.as_os_str().to_os_string();
         sidecar.push(suffix);
         let _ = fs::remove_file(PathBuf::from(sidecar));
     }
     Ok(safety)
+}
+
+fn is_busy(err: &rusqlite::Error) -> bool {
+    matches!(
+        err.sqlite_error_code(),
+        Some(rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked)
+    )
 }

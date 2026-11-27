@@ -51,6 +51,7 @@ These are the keys for the main view. Some do different things in other views.
 | Sort by Date, Description, Category, Subcategory, Type, or Amount | `1`–`6` or `F1`–`F6`; press again to reverse |
 | Add / edit / delete a transaction | `a` / `e` / `d` (delete asks for `y`/`n` confirmation) |
 | Create a one-time copy dated today | `Ctrl+C` |
+| Reverse the selected transfer | `Ctrl+R` |
 | Open the quick / advanced filter | `f` / `Ctrl+F` |
 | Open recurring settings for the selected transaction | `r` |
 | Open monthly summary / category summary / budgets | `s` / `c` / `b` |
@@ -481,6 +482,16 @@ Transfers appear in the main list with a `⇄` before the description and the am
 [`Shift+A`](#look-at-one-account) to see which account a transfer came from or went to. To contribute
 or pay on a schedule, make the transfer [recurring](#recurring-transactions) with `r`, like any other
 transaction; it then shows both markers, like `⇄ ⟲* Contribution`.
+
+### Reverse a transfer
+
+Select a transfer and press `Ctrl+R` to open a new one dated today. The form swaps *From Account*
+and *To Account* and copies the amount, description, category, and subcategory. If either account
+is archived, its field stays blank. You can edit the details before saving.
+
+If you pay for someone else, track what they owe in a separate cash account. Record the purchase
+as a transfer from your card to that account. When they pay you back, reverse the transfer and
+choose where you received the money under *To Account*.
 
 ### See transfers on an investment
 

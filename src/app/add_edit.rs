@@ -313,6 +313,44 @@ impl App {
             .unwrap_or_default()
     }
 
+    pub(crate) fn start_reverse_transfer(&mut self) {
+        let Some(tx) = self
+            .table_state
+            .selected()
+            .and_then(|view_index| self.get_original_index(view_index))
+            .map(|index| self.transactions[index].clone())
+        else {
+            self.set_status_message("Select a transfer to reverse first.", None);
+            return;
+        };
+        let (TransactionType::Transfer, Some(to_account_id)) =
+            (tx.transaction_type, tx.to_account_id)
+        else {
+            self.set_status_message("Only transfers can be reversed.", None);
+            return;
+        };
+
+        let live_name = |id: i64| {
+            self.accounts
+                .get(id)
+                .filter(|account| !account.archived)
+                .map(|account| account.name.clone())
+                .unwrap_or_default()
+        };
+        let (from, to) = (live_name(to_account_id), live_name(tx.account_id));
+
+        self.start_adding();
+        let fields = &mut self.add_edit_fields;
+        fields[AddEditField::Description] = tx.description;
+        fields[AddEditField::Amount] = format!("{:.2}", tx.amount);
+        fields[AddEditField::TransactionType] = TransactionType::Transfer.as_str().to_string();
+        fields[AddEditField::Category] = tx.category;
+        fields[AddEditField::Subcategory] = tx.subcategory;
+        fields[AddEditField::Account] = from;
+        fields[AddEditField::ToAccount] = to;
+        self.focus_add_field(AddEditField::ToAccount);
+    }
+
     // --- Copying Logic ---
     pub(crate) fn copy_transaction(&mut self) {
         if let Some(view_index) = self.table_state.selected() {

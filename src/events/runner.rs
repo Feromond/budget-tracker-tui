@@ -72,8 +72,7 @@ where
                                 || (app.mode == AppMode::AdvancedFiltering && key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Char('r') | KeyCode::Char('n')))
                                 || (app.mode == AppMode::CategoryCatalogFilter && key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Char('r')))
                                 || ((app.mode == AppMode::Filtering || app.mode == AppMode::AdvancedFiltering) && key.modifiers == KeyModifiers::SHIFT && matches!(key.code, KeyCode::Char(_)))
-                                // Allow Ctrl+Up/Down for jump navigation, Ctrl+C for copy, and Ctrl+F for advanced filter in Normal mode
-                                || (app.mode == AppMode::Normal && key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Up | KeyCode::Down | KeyCode::Char('c') | KeyCode::Char('f')))
+                                || (app.mode == AppMode::Normal && key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Up | KeyCode::Down | KeyCode::Char('c') | KeyCode::Char('r') | KeyCode::Char('f')))
                                 || (app.mode == AppMode::Normal && key.modifiers == KeyModifiers::SHIFT && matches!(key.code, KeyCode::Char('A') | KeyCode::Char('D')))
                                 || (matches!(app.mode, AppMode::Debts | AppMode::DebtDetail | AppMode::DebtEditor | AppMode::DebtReconcile) && key.modifiers == KeyModifiers::SHIFT && matches!(key.code, KeyCode::Left | KeyCode::Right | KeyCode::Char(_)))
                                 // Allow Ctrl+C to copy the selected ledger

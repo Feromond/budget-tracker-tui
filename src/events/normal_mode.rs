@@ -32,6 +32,7 @@ pub fn handle_normal_mode(app: &mut App, key_event: KeyEvent) {
         (KeyCode::Char('e'), _) => app.start_editing(),
         (KeyCode::Char('f'), KeyModifiers::CONTROL) => app.start_advanced_filtering(),
         (KeyCode::Char('f'), _) => app.start_filtering(),
+        (KeyCode::Char('r'), KeyModifiers::CONTROL) => app.start_reverse_transfer(),
         (KeyCode::Char('r'), _) => app.start_recurring_settings(),
         (KeyCode::Char('s'), _) => app.enter_summary_mode(),
         (KeyCode::Char('c'), KeyModifiers::CONTROL) => app.copy_transaction(),

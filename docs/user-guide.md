@@ -445,7 +445,8 @@ starting with *All accounts*. `Shift+A` opens a list of the ledger's accounts; p
 `↑`/`↓` or by typing its name and press `Enter`, or pick *All accounts* to go back. *Manage
 accounts…* at the bottom opens the account list, and `q` there brings you back to the main view.
 
-A card's view shows its purchases and payments. A transfer appears under both accounts it uses.
+A card's view shows its purchases and payments. Transfers appear in both accounts. A `+` means
+money came in, and a `-` means money went out.
 Totals and summaries follow the account in view, along with any [filters](#filtering). New
 transactions start in that account if it's cash or credit.
 

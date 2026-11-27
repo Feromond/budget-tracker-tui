@@ -117,7 +117,7 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 "Show an account",
                 "Navigation",
                 Some(
-                    "Show one account or all accounts. Transfers appear under both accounts they use, and summaries follow your selection. New transactions use the viewed account if it's cash or credit. Choose Manage accounts to add or edit accounts.",
+                    "View one account or all accounts. Summaries follow your selection. Transfers show + in the receiving account and - in the sending account. New transactions use the selected cash or credit account. Choose Manage accounts to add or edit accounts.",
                 ),
             ),
             KeyBindingInfo::new(

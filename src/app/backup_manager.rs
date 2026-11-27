@@ -153,6 +153,8 @@ impl App {
         let safety = match result {
             Ok(safety) => safety,
             Err(err) => {
+                // A failed restore may still leave a safety copy.
+                let _ = self.refresh_backups();
                 self.set_status_message(format!("Restore failed: {}", err), None);
                 return;
             }

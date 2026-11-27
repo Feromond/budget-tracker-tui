@@ -125,7 +125,6 @@ pub fn category_summary_keys(tx: &Transaction) -> (&str, &str) {
     (category, tx.subcategory.trim())
 }
 
-/// Sorts transactions by the selected column and order
 pub fn sort_transactions_impl(
     transactions: &mut [Transaction],
     sort_by: SortColumn,
@@ -133,19 +132,25 @@ pub fn sort_transactions_impl(
 ) {
     transactions.sort_by(|a, b| {
         let ordering = match sort_by {
-            SortColumn::Date => a.date.cmp(&b.date),
+            SortColumn::Date => a.date.cmp(&b.date).then_with(|| entry_order(a, b)),
             SortColumn::Description => a.description.cmp(&b.description),
             SortColumn::Amount => a.amount.partial_cmp(&b.amount).unwrap_or(Ordering::Equal),
             SortColumn::Type => a.transaction_type.cmp(&b.transaction_type),
             SortColumn::Category => a.category.cmp(&b.category),
             SortColumn::Subcategory => a.subcategory.cmp(&b.subcategory),
         };
-        if sort_order == SortOrder::Descending {
+        let ordering = if sort_order == SortOrder::Descending {
             ordering.reverse()
         } else {
             ordering
-        }
+        };
+        ordering.then_with(|| b.date.cmp(&a.date).then_with(|| entry_order(b, a)))
     });
+}
+
+fn entry_order(a: &Transaction, b: &Transaction) -> Ordering {
+    // Forecast occurrences inherit their parent's place in entry order.
+    a.id.or(a.parent_id).cmp(&b.id.or(b.parent_id))
 }
 
 /// Sorts catalog row indices. Blank tags and budgets always sink to the bottom so

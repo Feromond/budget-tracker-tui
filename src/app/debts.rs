@@ -603,7 +603,7 @@ impl App {
         crate::validation::validate_category(&self.categories, kind, category, subcategory).is_ok()
     }
 
-    fn focus_add_field(&mut self, field: AddEditField) {
+    pub(crate) fn focus_add_field(&mut self, field: AddEditField) {
         self.add_edit_fields.focus(field);
         self.add_edit_cursor = self.add_edit_fields[field].len();
     }

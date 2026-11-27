@@ -59,6 +59,14 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 ),
             ),
             KeyBindingInfo::new(
+                "Ctrl+R",
+                "Reverse selected transfer",
+                "Actions",
+                Some(
+                    "Opens a new transfer dated today with the accounts swapped. You can edit it before saving.",
+                ),
+            ),
+            KeyBindingInfo::new(
                 "r",
                 "Manage recurring transactions",
                 "Actions",

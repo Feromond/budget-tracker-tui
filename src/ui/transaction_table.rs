@@ -3,6 +3,7 @@ use crate::model::{DATE_FORMAT, SortColumn, SortOrder, TransactionType};
 use crate::ui::helpers::{clamp_table_scroll, format_amount, format_hours};
 use ratatui::prelude::*;
 use ratatui::widgets::*;
+use rust_decimal::Decimal;
 pub fn render_transaction_table(f: &mut Frame, app: &mut App, area: Rect) {
     let header_titles = [
         "Date",
@@ -73,11 +74,21 @@ pub fn render_transaction_table(f: &mut Frame, app: &mut App, area: Rect) {
 
         let description_text = crate::ui::helpers::marked_description(tx);
 
-        let amount_cell_text = if app.show_hours {
-            format_hours(&tx.amount, app.hourly_rate)
-        } else {
-            format_amount(&tx.amount)
+        let transfer_change = match app.account_scope {
+            Some(id) if tx.transaction_type == TransactionType::Transfer => {
+                Some(tx.balance_change(id))
+            }
+            _ => None,
         };
+        let shown_amount = transfer_change.unwrap_or(tx.amount);
+        let mut amount_cell_text = if app.show_hours {
+            format_hours(&shown_amount, app.hourly_rate)
+        } else {
+            format_amount(&shown_amount)
+        };
+        if transfer_change.is_some_and(|change| change > Decimal::ZERO) {
+            amount_cell_text.insert(0, '+');
+        }
 
         let cells = vec![
             Cell::from(tx.date.format(DATE_FORMAT).to_string()),

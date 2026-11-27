@@ -1,7 +1,7 @@
 use crate::db::database::{SCHEMA_VERSION, SqliteDatabase};
 use chrono::{Duration, Local, NaiveDateTime};
 use std::fs;
-use std::io::{Error, ErrorKind, Result};
+use std::io::{Error, ErrorKind, Read, Result};
 use std::path::{Path, PathBuf};
 
 pub const DEFAULT_KEEP: u32 = 5;
@@ -346,6 +346,36 @@ fn verify(backup_path: &Path) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+/// Bytes 24–27 hold SQLite’s file change counter.
+pub fn change_counter(database_path: &Path) -> Option<[u8; 4]> {
+    let mut header = [0u8; 28];
+    fs::File::open(database_path)
+        .ok()?
+        .read_exact(&mut header)
+        .ok()?;
+    header[24..28].try_into().ok()
+}
+
+/// Restores a snapshot in place to preserve permissions and symlinks.
+pub fn overwrite(database_path: &Path, bytes: &[u8]) -> Result<()> {
+    let dir = backups_dir(database_path);
+    fs::create_dir_all(&dir)?;
+    let staged = dir.join(format!("undo.{}{}", EXTENSION, PARTIAL_SUFFIX));
+    let copied = fs::write(&staged, bytes).and_then(|_| {
+        rusqlite::Connection::open(&staged)
+            .and_then(|source| {
+                source.backup(
+                    rusqlite::MAIN_DB,
+                    database_path,
+                    None::<fn(rusqlite::backup::Progress)>,
+                )
+            })
+            .map_err(Error::other)
+    });
+    let _ = fs::remove_file(&staged);
+    copied
 }
 
 pub fn restore(

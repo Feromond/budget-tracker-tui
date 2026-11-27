@@ -21,5 +21,6 @@ pub mod settings_types;
 pub mod state;
 pub mod summary;
 pub mod transaction_io;
+pub mod undo;
 pub mod updater;
 pub mod util;

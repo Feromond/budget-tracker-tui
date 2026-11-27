@@ -160,10 +160,12 @@ impl App {
 
         // Refreshing ledgers also runs any migrations the restored database needs.
         self.clear_all_filter_fields();
-        if let Err(err) = self
+        let reloaded = self
             .refresh_ledgers()
-            .and_then(|_| self.reload_working_set())
-        {
+            .and_then(|_| self.reload_working_set());
+        // The restore took effect even if the reload failed.
+        self.reset_undo_history();
+        if let Err(err) = reloaded {
             self.set_status_message(format!("Restored, but reloading failed: {}", err), None);
             return;
         }

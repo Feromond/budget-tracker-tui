@@ -20,7 +20,7 @@ serde_json = "1.0.154"
 rust_decimal = { version = "1.43.0", features = ["serde"] }
 ureq = { version = "3.5.2", features = ["json"] }
 semver = "1.0.28"
-rusqlite = { version = "0.42.0", features = ["bundled"] }
+rusqlite = { version = "0.42.0", features = ["backup", "bundled"] }
 ed25519-dalek = "3.0.0"
 sha2 = "0.11.1"
 data-encoding = "2.11.1"

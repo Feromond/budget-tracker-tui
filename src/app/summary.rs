@@ -336,7 +336,7 @@ impl App {
         self.resort_category_summary_items();
     }
 
-    fn resort_category_summary_items(&mut self) {
+    pub(crate) fn resort_category_summary_items(&mut self) {
         let selected = self
             .category_summary_table_state
             .selected()

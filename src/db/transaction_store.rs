@@ -1950,6 +1950,63 @@ mod tests {
     }
 
     #[test]
+    fn undo_snapshots_see_writes_but_not_reads() {
+        use crate::db::budget_store::{BudgetStore, SqliteBudgetStore};
+        use crate::db::category_store::SqliteCategoryStore;
+
+        let temp = TempDb::new();
+        let store = temp.store();
+        store
+            .insert(&draft("2026-01-05", "Coffee", "4.50", "Food"))
+            .unwrap();
+        let database = || SqliteDatabase::new(&temp.path);
+        SqliteLedgerStore::new(database()).initialize().unwrap();
+        let before = backup::change_counter(&temp.path).unwrap();
+        let snapshot = std::fs::read(&temp.path).unwrap();
+
+        SqliteLedgerStore::new(database()).initialize().unwrap();
+        SqliteCategoryStore::new(database()).list().unwrap();
+        let accounts = SqliteAccountStore::new(database(), DEFAULT_LEDGER_ID);
+        accounts.list_accounts().unwrap();
+        accounts.list_entries().unwrap();
+        accounts.list_debt_terms().unwrap();
+        SqliteBudgetStore::new(database())
+            .list(DEFAULT_LEDGER_ID)
+            .unwrap();
+        store.list().unwrap();
+        assert_eq!(backup::change_counter(&temp.path), Some(before));
+
+        store
+            .insert(&draft("2026-01-06", "Lunch", "12.00", "Food"))
+            .unwrap();
+        assert_ne!(backup::change_counter(&temp.path), Some(before));
+
+        backup::overwrite(&temp.path, &snapshot).unwrap();
+        let rows = store.list().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].description, "Coffee");
+
+        #[cfg(unix)]
+        {
+            let link = temp.path.with_extension("link.db");
+            std::os::unix::fs::symlink(&temp.path, &link).unwrap();
+            let one_row = std::fs::read(&temp.path).unwrap();
+            store
+                .insert(&draft("2026-01-07", "Dinner", "30.00", "Food"))
+                .unwrap();
+            let written = backup::overwrite(&link, &one_row);
+            let still_linked = std::fs::symlink_metadata(&link)
+                .map(|meta| meta.file_type().is_symlink())
+                .unwrap_or(false);
+            let _ = std::fs::remove_file(&link);
+            let _ = std::fs::remove_dir_all(backup::backups_dir(&link));
+            written.unwrap();
+            assert!(still_linked);
+            assert_eq!(store.list().unwrap().len(), 1);
+        }
+    }
+
+    #[test]
     fn import_merge_skips_duplicates() {
         let temp = TempDb::new();
         let store = temp.store();

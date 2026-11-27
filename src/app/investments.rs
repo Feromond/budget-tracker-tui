@@ -59,7 +59,7 @@ impl App {
             .or_else(|| self.selected_investment_account_id())
     }
 
-    fn clamp_investment_selection(&mut self) {
+    pub(crate) fn clamp_investment_selection(&mut self) {
         let len = self.visible_investment_ids().len();
         if len == 0 {
             self.investment_table_state.select(None);

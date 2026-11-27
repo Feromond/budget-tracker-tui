@@ -151,6 +151,14 @@ pub fn get_help_for_mode(mode: AppMode) -> Vec<KeyBindingInfo> {
                 ),
             ),
             KeyBindingInfo::new(
+                "Ctrl+Z / Ctrl+Y",
+                "Undo / Redo",
+                "System",
+                Some(
+                    "Undo or redo a saved change from the main view or a list. Close any form or prompt first. Quitting clears your history.",
+                ),
+            ),
+            KeyBindingInfo::new(
                 "Ctrl+H",
                 "Show Keybindings Help",
                 "System",
